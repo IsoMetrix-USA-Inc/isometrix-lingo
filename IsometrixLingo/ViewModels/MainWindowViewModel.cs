@@ -3236,6 +3236,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
             }
 
+            // If change detection is enabled and we have branch configurations, run git diff
+            if (DetectChanges && _branchConfigurations.Count > 0)
+            {
+                await RunGitChangeDetection();
+            }
+
             FileMappingStepStatus = StepStatus.Completed;
             ModeSelectionStepStatus = StepStatus.InProgress;
             CurrentStep = WorkflowStep.ModeSelection;
@@ -3248,6 +3254,77 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             StatusMessage = $"Error confirming file mapping: {ex.Message}";
             // Don't re-throw - keep the app running
+        }
+    }
+
+    private async Task RunGitChangeDetection()
+    {
+        try
+        {
+            var totalChanges = 0;
+            var processedRepos = 0;
+
+            foreach (var (repoPath, branches) in _branchConfigurations)
+            {
+                var repoName = Path.GetFileName(repoPath);
+                StatusMessage = $"Analyzing changes in repository '{repoName}'... ({++processedRepos}/{_branchConfigurations.Count})";
+
+                // Small delay to allow UI to update
+                await Task.Delay(100);
+
+                // Get all translation keys from this repository
+                var keysInRepo = _translationStore.GetAllKeys()
+                    .Where(k => k.Source?.DirectoryPath != null && 
+                                Path.GetFullPath(k.Source.DirectoryPath).StartsWith(Path.GetFullPath(repoPath)))
+                    .ToList();
+
+                // Group keys by source file
+                var fileGroups = keysInRepo.GroupBy(k => k.Source).ToList();
+
+                foreach (var fileGroup in fileGroups)
+                {
+                    var source = fileGroup.Key;
+                    if (source == null || source.DirectoryPath == null)
+                        continue;
+
+                    // Construct file path relative to repo
+                    var fileName = source.Type == FileType.Json 
+                        ? $"{source.Name}.en.json"  // Assuming .en.json for English files
+                        : $"{source.Name}.resx";     // Base RESX name
+
+                    var fullFilePath = Path.Combine(source.DirectoryPath, fileName);
+                    var relativeFilePath = Path.GetRelativePath(repoPath, fullFilePath);
+
+                    // Run git diff on this file
+                    var diffContent = _gitDiffService.GetFileDiff(repoPath, branches.baseBranch, branches.targetBranch, relativeFilePath);
+                    
+                    if (string.IsNullOrEmpty(diffContent))
+                        continue;
+
+                    // Parse diff based on file type
+                    Dictionary<string, ChangeType> changes = source.Type == FileType.Json
+                        ? _gitDiffService.ParseJsonDiff(diffContent)
+                        : _gitDiffService.ParseResxDiff(diffContent);
+
+                    // Apply ChangeType to translation keys
+                    foreach (var key in fileGroup)
+                    {
+                        if (changes.TryGetValue(key.Key, out var changeType))
+                        {
+                            key.ChangeType = changeType;
+                            totalChanges++;
+                        }
+                    }
+                }
+            }
+
+            StatusMessage = totalChanges > 0
+                ? $"Change detection complete. Found {totalChanges} modified or added translation key{(totalChanges == 1 ? "" : "s")}."
+                : "Change detection complete. No changes detected.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error during change detection: {ex.Message}";
         }
     }
 
