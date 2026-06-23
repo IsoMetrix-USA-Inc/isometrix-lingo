@@ -108,12 +108,31 @@ public partial class BranchComparisonViewModel : ViewModelBase
         }
         else
         {
-            BaseBranch = "develop";
+            // Detect whether repository uses "main" or "master"
+            BaseBranch = DetectDefaultBranch(CurrentRepositoryPath);
             TargetBranch = string.Empty;
         }
 
         ClearError();
         UpdateNavigationState();
+    }
+
+    private string DetectDefaultBranch(string repoPath)
+    {
+        // Check for "main" first (modern convention)
+        if (_gitDiffService.ValidateBranchExists(repoPath, "main"))
+        {
+            return "main";
+        }
+        
+        // Fall back to "master" (legacy convention)
+        if (_gitDiffService.ValidateBranchExists(repoPath, "master"))
+        {
+            return "master";
+        }
+        
+        // If neither exists, default to "main" (user will get validation error if wrong)
+        return "main";
     }
 
     [RelayCommand]
