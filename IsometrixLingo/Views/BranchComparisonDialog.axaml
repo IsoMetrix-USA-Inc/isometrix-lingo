@@ -1,0 +1,141 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:IsometrixLingo.ViewModels"
+        x:Class="IsometrixLingo.Views.BranchComparisonDialog"
+        x:DataType="vm:BranchComparisonViewModel"
+        Title="Configure Git Branch Comparison"
+        Width="600"
+        Height="400"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,20">
+            <TextBlock Text="Git Branch Comparison Configuration" 
+                       FontSize="18" 
+                       FontWeight="Bold"
+                       Margin="0,0,0,10"/>
+            <TextBlock Text="Specify base and target branches to detect changes between releases."
+                       Foreground="#666"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- Repository Info -->
+        <Border Grid.Row="1" 
+                Background="#F0F0F0" 
+                BorderBrush="#CCC" 
+                BorderThickness="1" 
+                CornerRadius="4"
+                Padding="15"
+                Margin="0,0,0,20">
+            <StackPanel Spacing="5">
+                <TextBlock FontWeight="SemiBold" Foreground="#212121">
+                    <Run Text="Repository "/>
+                    <Run Text="{Binding CurrentRepositoryNumber}"/>
+                    <Run Text=" of "/>
+                    <Run Text="{Binding TotalRepositories}"/>
+                </TextBlock>
+                <TextBlock Text="{Binding CurrentRepositoryName}" 
+                           FontSize="14"
+                           FontWeight="Bold"
+                           Foreground="#212121"/>
+                <TextBlock Text="{Binding CurrentRepositoryPath}" 
+                           FontSize="11"
+                           Foreground="#666"
+                           TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Branch Configuration -->
+        <StackPanel Grid.Row="2" Spacing="15" Margin="0,0,0,20">
+            <!-- Base Branch -->
+            <StackPanel Spacing="5">
+                <TextBlock Text="Base Branch (existing release):"
+                           FontWeight="SemiBold"/>
+                <TextBox Text="{Binding BaseBranch}"
+                         PlaceholderText="e.g., develop, main, master"
+                         LostFocus="BaseBranch_LostFocus"/>
+                <TextBlock Text="The branch containing the previous release version."
+                           FontSize="11"
+                           Foreground="#666"/>
+            </StackPanel>
+
+            <!-- Target Branch -->
+            <StackPanel Spacing="5">
+                <TextBlock Text="Target Branch (new release):"
+                           FontWeight="SemiBold"/>
+                <TextBox Text="{Binding TargetBranch}"
+                         PlaceholderText="e.g., release/v5.0.0, feature/LP-13426"
+                         LostFocus="TargetBranch_LostFocus"/>
+                <TextBlock Text="The branch containing the new changes to review."
+                           FontSize="11"
+                           Foreground="#666"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Error Message -->
+        <Border Grid.Row="3"
+                IsVisible="{Binding HasError}"
+                Background="#FFEBEE"
+                BorderBrush="#F44336"
+                BorderThickness="1"
+                CornerRadius="4"
+                Padding="12"
+                Margin="0,0,0,15">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="⚠" 
+                           FontSize="16"
+                           Foreground="#F44336"
+                           VerticalAlignment="Top"/>
+                <TextBlock Text="{Binding ErrorMessage}"
+                           Foreground="#C62828"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Navigation Buttons -->
+        <StackPanel Grid.Row="4"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    Spacing="10"
+                    Margin="0,0,0,15">
+            <Button Content="← Previous Repository"
+                    Command="{Binding NavigatePreviousCommand}"
+                    IsEnabled="{Binding CanNavigatePrevious}"
+                    Width="160"/>
+            <Button Content="Next Repository →"
+                    Command="{Binding NavigateNextCommand}"
+                    IsEnabled="{Binding CanNavigateNext}"
+                    Width="160"/>
+        </StackPanel>
+
+        <!-- Action Buttons -->
+        <StackPanel Grid.Row="5"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="10">
+            <Button Content="Validate Branches"
+                    Command="{Binding ValidateBranchesCommand}"
+                    Width="140"/>
+            <Button Content="Confirm"
+                    Click="Confirm_Click"
+                    IsEnabled="{Binding CanConfirm}"
+                    Width="100"
+                    Classes="accent"/>
+            <Button Content="Cancel"
+                    Click="Cancel_Click"
+                    Width="100"/>
+        </StackPanel>
+    </Grid>
+</Window>
