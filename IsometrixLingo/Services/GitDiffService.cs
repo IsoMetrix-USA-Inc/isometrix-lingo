@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using LibGit2Sharp;
 using IsometrixLingo.Models;
 
@@ -7,6 +9,35 @@ namespace IsometrixLingo.Services;
 
 public class GitDiffService
 {
+    /// <summary>
+    /// Fetches the latest changes from the remote repository.
+    /// </summary>
+    /// <param name="repoPath">Absolute path to the git repository</param>
+    /// <returns>True if fetch succeeded, false otherwise</returns>
+    public async Task<bool> FetchRepositoryAsync(string repoPath)
+    {
+        return await Task.Run(() =>
+        {
+            try
+            {
+                using var repo = new Repository(repoPath);
+                
+                // Fetch from all remotes
+                foreach (var remote in repo.Network.Remotes)
+                {
+                    var refSpecs = remote.FetchRefSpecs.Select(x => x.Specification);
+                    Commands.Fetch(repo, remote.Name, refSpecs, null, $"Fetch from {remote.Name}");
+                }
+                
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        });
+    }
+
     /// <summary>
     /// Validates that a branch exists in the specified repository.
     /// </summary>

@@ -119,20 +119,20 @@ public partial class BranchComparisonViewModel : ViewModelBase
 
     private string DetectDefaultBranch(string repoPath)
     {
-        // Check for "main" first (modern convention)
-        if (_gitDiffService.ValidateBranchExists(repoPath, "main"))
+        // Check for "origin/main" first (modern convention with remote tracking)
+        if (_gitDiffService.ValidateBranchExists(repoPath, "origin/main"))
         {
-            return "main";
+            return "origin/main";
         }
         
-        // Fall back to "master" (legacy convention)
-        if (_gitDiffService.ValidateBranchExists(repoPath, "master"))
+        // Fall back to "origin/master" (legacy convention with remote tracking)
+        if (_gitDiffService.ValidateBranchExists(repoPath, "origin/master"))
         {
-            return "master";
+            return "origin/master";
         }
         
-        // If neither exists, default to "main" (user will get validation error if wrong)
-        return "main";
+        // If neither remote tracking branch exists, default to "origin/main"
+        return "origin/main";
     }
 
     [RelayCommand]

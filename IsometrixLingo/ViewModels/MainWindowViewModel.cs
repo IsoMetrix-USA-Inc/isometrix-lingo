@@ -3322,6 +3322,12 @@ public partial class MainWindowViewModel : ViewModelBase
             foreach (var (repoPath, branches) in _branchConfigurations)
             {
                 var repoName = Path.GetFileName(repoPath);
+                
+                // Fetch latest changes from remote
+                StatusMessage = $"Fetching latest changes for '{repoName}'... ({processedRepos + 1}/{_branchConfigurations.Count})";
+                await _gitDiffService.FetchRepositoryAsync(repoPath);
+                
+                // Analyze changes
                 StatusMessage = $"Analyzing changes in repository '{repoName}'... ({++processedRepos}/{_branchConfigurations.Count})";
 
                 // Small delay to allow UI to update
