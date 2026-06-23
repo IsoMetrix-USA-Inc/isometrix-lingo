@@ -205,6 +205,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private Dictionary<string, (string baseBranch, string targetBranch)> _branchConfigurations = new();
     private readonly GitDiffService _gitDiffService = new();
     private List<DirectoryScanResult> _selectedRepositories = new();
+    private ChangeMetadata? _changeMetadata = null;
 
     public bool HasSuggestedDeploymentRoot => !string.IsNullOrWhiteSpace(SuggestedDeploymentRoot);
     public bool HasDeploymentPreview => DeploymentPreviewItems.Count > 0;
@@ -2763,6 +2764,15 @@ public partial class MainWindowViewModel : ViewModelBase
                 _resxWriter.CopyAndUpdateFiles(resxKeys, _rootDirectoryPath, tempFolderPath, Username, CurrentMode);
             }
 
+            // Export metadata.json if change detection was performed
+            if (_changeMetadata != null && _changeMetadata.Repositories.Count > 0)
+            {
+                var metadataService = new MetadataExportService();
+                metadataService.WriteMetadataFile(tempFolderPath, _changeMetadata);
+                StatusMessage = $"Exported change metadata for {_changeMetadata.Repositories.Count} repositor{(_changeMetadata.Repositories.Count == 1 ? "y" : "ies")}.";
+                await Task.Delay(500); // Brief pause to show metadata message
+            }
+
             // Create ZIP file from the root temp folder (includes the named folder)
             if (File.Exists(zipFilePath))
             {
@@ -3274,6 +3284,13 @@ public partial class MainWindowViewModel : ViewModelBase
             var totalChanges = 0;
             var processedRepos = 0;
 
+            // Initialize change metadata
+            _changeMetadata = new ChangeMetadata
+            {
+                ExtractionTimestamp = DateTime.UtcNow,
+                SchemaVersion = "1.0"
+            };
+
             foreach (var (repoPath, branches) in _branchConfigurations)
             {
                 var repoName = Path.GetFileName(repoPath);
@@ -3281,6 +3298,20 @@ public partial class MainWindowViewModel : ViewModelBase
 
                 // Small delay to allow UI to update
                 await Task.Delay(100);
+
+                // Get commit hashes for metadata
+                var baseCommit = _gitDiffService.GetCommitHash(repoPath, branches.baseBranch) ?? string.Empty;
+                var targetCommit = _gitDiffService.GetCommitHash(repoPath, branches.targetBranch) ?? string.Empty;
+
+                // Create repository change info
+                var repoChangeInfo = new RepositoryChangeInfo
+                {
+                    Path = repoPath,
+                    BaseBranch = branches.baseBranch,
+                    TargetBranch = branches.targetBranch,
+                    BaseCommit = baseCommit,
+                    TargetCommit = targetCommit
+                };
 
                 // Get all translation keys from this repository
                 var keysInRepo = _translationStore.GetAllKeys()
@@ -3316,15 +3347,43 @@ public partial class MainWindowViewModel : ViewModelBase
                         ? _gitDiffService.ParseJsonDiff(diffContent)
                         : _gitDiffService.ParseResxDiff(diffContent);
 
-                    // Apply ChangeType to translation keys
+                    // Create file change info for metadata
+                    var fileChangeInfo = new FileChangeInfo
+                    {
+                        Path = relativeFilePath
+                    };
+
+                    // Apply ChangeType to translation keys and collect metadata
                     foreach (var key in fileGroup)
                     {
                         if (changes.TryGetValue(key.Key, out var changeType))
                         {
                             key.ChangeType = changeType;
                             totalChanges++;
+
+                            // Add to metadata
+                            if (changeType == ChangeType.Modified)
+                            {
+                                fileChangeInfo.ModifiedKeys.Add(key.Key);
+                            }
+                            else if (changeType == ChangeType.Added)
+                            {
+                                fileChangeInfo.AddedKeys.Add(key.Key);
+                            }
                         }
                     }
+
+                    // Only add file to metadata if it has changes
+                    if (fileChangeInfo.ModifiedKeys.Count > 0 || fileChangeInfo.AddedKeys.Count > 0)
+                    {
+                        repoChangeInfo.Files.Add(fileChangeInfo);
+                    }
+                }
+
+                // Only add repo to metadata if it has file changes
+                if (repoChangeInfo.Files.Count > 0)
+                {
+                    _changeMetadata.Repositories.Add(repoChangeInfo);
                 }
             }
 
