@@ -61,7 +61,7 @@ public class ProgressService
             ExportStepStatus = state.ExportStepStatus,
             DeployStepStatus = state.DeployStepStatus,
             CurrentMode = state.CurrentMode,
-            
+
             // Deployment-related properties
             RootDirectoryPath = state.RootDirectoryPath,
             DeploymentRootPath = state.DeploymentRootPath,
@@ -86,7 +86,7 @@ public class ProgressService
                 Success = dh.Success,
                 DeploymentRoot = dh.DeploymentRoot
             }).ToList(),
-            
+
             // Change tracking metadata
             ChangeMetadata = state.ChangeMetadata
         };
@@ -151,7 +151,7 @@ public class ProgressService
                 ExportStepStatus = serializableState.ExportStepStatus,
                 DeployStepStatus = serializableState.DeployStepStatus,
                 CurrentMode = serializableState.CurrentMode,
-                
+
                 // Deployment-related properties
                 RootDirectoryPath = serializableState.RootDirectoryPath,
                 DeploymentRootPath = serializableState.DeploymentRootPath,
@@ -176,7 +176,7 @@ public class ProgressService
                     Success = sdh.Success,
                     DeploymentRoot = sdh.DeploymentRoot
                 }).ToList(),
-                
+
                 // Change tracking metadata
                 ChangeMetadata = serializableState.ChangeMetadata
             };

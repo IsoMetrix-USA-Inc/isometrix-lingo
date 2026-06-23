@@ -34,9 +34,9 @@ public class TranslationStore
         foreach (var key in keys)
         {
             // Check if this key already exists (same key name and source file including directory)
-            var existingKey = _allKeys.FirstOrDefault(k => 
-                k.Key == key.Key && 
-                k.Source.Name == key.Source.Name && 
+            var existingKey = _allKeys.FirstOrDefault(k =>
+                k.Key == key.Key &&
+                k.Source.Name == key.Source.Name &&
                 k.Source.Type == key.Source.Type &&
                 k.Source.DirectoryPath == key.Source.DirectoryPath);
 
@@ -167,7 +167,7 @@ public class TranslationStore
         else
         {
             keysToShow = _allKeys.Where(k => _currentFileFilter.Any(sf =>
-                sf.Name == k.Source.Name && 
+                sf.Name == k.Source.Name &&
                 sf.Type == k.Source.Type &&
                 sf.DirectoryPath == k.Source.DirectoryPath));
         }

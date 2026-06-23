@@ -20,7 +20,7 @@ public class SerializableSessionState
     public StepStatus ExportStepStatus { get; set; } = StepStatus.NotStarted;
     public StepStatus DeployStepStatus { get; set; } = StepStatus.NotStarted;
     public EditMode CurrentMode { get; set; } = EditMode.Edit;
-    
+
     // Deployment-related properties
     public string RootDirectoryPath { get; set; } = string.Empty;
     public string DeploymentRootPath { get; set; } = string.Empty;
@@ -33,7 +33,7 @@ public class SerializableSessionState
     public bool ShowDeploymentSuccess { get; set; } = false;
     public string DeploymentSuccessMessage { get; set; } = string.Empty;
     public List<SerializableDeploymentHistoryEntry> DeploymentHistory { get; set; } = new();
-    
+
     // Change tracking metadata
     public ChangeMetadata? ChangeMetadata { get; set; } = null;
 }

@@ -21,14 +21,14 @@ public class GitDiffService
             try
             {
                 using var repo = new Repository(repoPath);
-                
+
                 // Fetch from all remotes
                 foreach (var remote in repo.Network.Remotes)
                 {
                     var refSpecs = remote.FetchRefSpecs.Select(x => x.Specification);
                     Commands.Fetch(repo, remote.Name, refSpecs, null, $"Fetch from {remote.Name}");
                 }
-                
+
                 return true;
             }
             catch (Exception)
@@ -92,26 +92,26 @@ public class GitDiffService
     public List<string> GetChangedFiles(string repoPath, string baseBranch, string targetBranch)
     {
         var changedFiles = new List<string>();
-        
+
         try
         {
             using var repo = new Repository(repoPath);
-            
+
             var baseCommit = repo.Branches[baseBranch]?.Tip;
             var targetCommit = repo.Branches[targetBranch]?.Tip;
-            
+
             if (baseCommit == null || targetCommit == null)
             {
                 return changedFiles;
             }
 
             var changes = repo.Diff.Compare<TreeChanges>(baseCommit.Tree, targetCommit.Tree);
-            
+
             foreach (var change in changes)
             {
                 changedFiles.Add(change.Path);
             }
-            
+
             return changedFiles;
         }
         catch (Exception)
@@ -133,17 +133,17 @@ public class GitDiffService
         try
         {
             using var repo = new Repository(repoPath);
-            
+
             var baseCommit = repo.Branches[baseBranch]?.Tip;
             var targetCommit = repo.Branches[targetBranch]?.Tip;
-            
+
             if (baseCommit == null || targetCommit == null)
             {
                 return null;
             }
 
             var patch = repo.Diff.Compare<Patch>(baseCommit.Tree, targetCommit.Tree, new[] { filePath });
-            
+
             return patch?.Content;
         }
         catch (Exception)
@@ -160,7 +160,7 @@ public class GitDiffService
     public Dictionary<string, ChangeType> ParseJsonDiff(string diffContent)
     {
         var changes = new Dictionary<string, ChangeType>();
-        
+
         if (string.IsNullOrWhiteSpace(diffContent))
         {
             return changes;
@@ -170,15 +170,15 @@ public class GitDiffService
         // Lines starting with - are removed
         // Lines starting with + are added
         // Format: "key": "value"
-        
+
         var lines = diffContent.Split('\n');
         var addedKeys = new HashSet<string>();
         var removedKeys = new HashSet<string>();
-        
+
         foreach (var line in lines)
         {
             var trimmed = line.Trim();
-            
+
             if (trimmed.StartsWith("+") && !trimmed.StartsWith("+++"))
             {
                 var key = ExtractKeyFromJsonLine(trimmed.Substring(1).Trim());
@@ -196,7 +196,7 @@ public class GitDiffService
                 }
             }
         }
-        
+
         // Keys in both sets = Modified
         // Keys only in added = Added
         foreach (var key in addedKeys)
@@ -210,7 +210,7 @@ public class GitDiffService
                 changes[key] = ChangeType.Added;
             }
         }
-        
+
         return changes;
     }
 
@@ -222,7 +222,7 @@ public class GitDiffService
     public Dictionary<string, ChangeType> ParseResxDiff(string diffContent)
     {
         var changes = new Dictionary<string, ChangeType>();
-        
+
         if (string.IsNullOrWhiteSpace(diffContent))
         {
             return changes;
@@ -230,15 +230,15 @@ public class GitDiffService
 
         // Parse RESX diff format
         // Look for <data name="key"> elements
-        
+
         var lines = diffContent.Split('\n');
         var addedKeys = new HashSet<string>();
         var removedKeys = new HashSet<string>();
-        
+
         foreach (var line in lines)
         {
             var trimmed = line.Trim();
-            
+
             if (trimmed.StartsWith("+") && !trimmed.StartsWith("+++"))
             {
                 var key = ExtractKeyFromResxLine(trimmed.Substring(1).Trim());
@@ -256,7 +256,7 @@ public class GitDiffService
                 }
             }
         }
-        
+
         // Keys in both sets = Modified
         // Keys only in added = Added
         foreach (var key in addedKeys)
@@ -270,7 +270,7 @@ public class GitDiffService
                 changes[key] = ChangeType.Added;
             }
         }
-        
+
         return changes;
     }
 

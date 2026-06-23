@@ -124,13 +124,13 @@ public partial class BranchComparisonViewModel : ViewModelBase
         {
             return "origin/main";
         }
-        
+
         // Fall back to "origin/master" (legacy convention with remote tracking)
         if (_gitDiffService.ValidateBranchExists(repoPath, "origin/master"))
         {
             return "origin/master";
         }
-        
+
         // If neither remote tracking branch exists, default to "origin/main"
         return "origin/main";
     }

@@ -28,7 +28,7 @@ public class MetadataImportService
     public ChangeMetadata? LoadMetadata(string directoryPath)
     {
         var metadataPath = Path.Combine(directoryPath, "metadata.json");
-        
+
         if (!File.Exists(metadataPath))
             return null;
 
@@ -59,16 +59,16 @@ public class MetadataImportService
             foreach (var file in repo.Files)
             {
                 // Find keys matching this file
-                var fileKeys = keys.Where(k => 
+                var fileKeys = keys.Where(k =>
                 {
                     if (k.Source?.DirectoryPath == null)
                         return false;
 
                     // Construct expected file path
-                    var fileName = k.Source.Type == FileType.Json 
+                    var fileName = k.Source.Type == FileType.Json
                         ? $"{k.Source.Name}.en.json"
                         : $"{k.Source.Name}.resx";
-                    
+
                     var fullFilePath = Path.Combine(k.Source.DirectoryPath, fileName);
                     var relativePath = Path.GetRelativePath(rootDirectoryPath, fullFilePath);
 

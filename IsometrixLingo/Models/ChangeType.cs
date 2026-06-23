@@ -9,12 +9,12 @@ public enum ChangeType
     /// No change detected - key exists in both branches with same value.
     /// </summary>
     None = 0,
-    
+
     /// <summary>
     /// Modified - key exists in both branches but value changed.
     /// </summary>
     Modified = 1,
-    
+
     /// <summary>
     /// Added - key exists in target branch but not in base branch.
     /// </summary>

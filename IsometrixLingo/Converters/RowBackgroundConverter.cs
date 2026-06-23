@@ -15,8 +15,8 @@ public class RowBackgroundConverter : IMultiValueConverter
 {
     public object? Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
     {
-        if (values.Count >= 2 && 
-            values[0] is bool hasMissingTranslations && 
+        if (values.Count >= 2 &&
+            values[0] is bool hasMissingTranslations &&
             values[1] is ChangeType changeType)
         {
             // Priority 1: Missing translations (most important)
