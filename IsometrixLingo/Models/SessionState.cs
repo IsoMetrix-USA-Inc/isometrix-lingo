@@ -29,4 +29,7 @@ public class SessionState
     public bool ShowDeploymentSuccess { get; set; } = false;
     public string DeploymentSuccessMessage { get; set; } = string.Empty;
     public List<DeploymentHistoryEntry> DeploymentHistory { get; set; } = new();
+    
+    // Change tracking metadata
+    public ChangeMetadata? ChangeMetadata { get; set; } = null;
 }

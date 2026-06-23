@@ -33,6 +33,9 @@ public class SerializableSessionState
     public bool ShowDeploymentSuccess { get; set; } = false;
     public string DeploymentSuccessMessage { get; set; } = string.Empty;
     public List<SerializableDeploymentHistoryEntry> DeploymentHistory { get; set; } = new();
+    
+    // Change tracking metadata
+    public ChangeMetadata? ChangeMetadata { get; set; } = null;
 }
 
 /// <summary>
@@ -49,6 +52,7 @@ public class SerializableTranslationKey
     public Dictionary<string, string> OriginalValues { get; set; } = new();
     public List<string> ModifiedLanguages { get; set; } = new();
     public bool ShowOriginalForThisRow { get; set; }
+    public ChangeType ChangeType { get; set; } = ChangeType.None;
 }
 
 /// <summary>

@@ -1319,6 +1319,28 @@ public partial class MainWindowViewModel : ViewModelBase
 
             UpdateFileFilters();
             
+            // Check for metadata.json and import change tracking if present
+            var metadataService = new MetadataImportService();
+            if (metadataService.MetadataExists(parentPath))
+            {
+                var metadata = metadataService.LoadMetadata(parentPath);
+                if (metadata != null)
+                {
+                    var allKeys = _translationStore.GetAllKeys();
+                    metadataService.ApplyMetadataToKeys(metadata, allKeys, parentPath);
+                    _changeMetadata = metadata;
+                    
+                    var totalChanges = allKeys.Count(k => k.ChangeType != ChangeType.None);
+                    StatusMessage = $"Loaded change metadata: {totalChanges} modified/added key{(totalChanges == 1 ? "" : "s")} detected.";
+                    await Task.Delay(1500); // Show metadata message
+                }
+                else
+                {
+                    StatusMessage = "Warning: metadata.json found but could not be parsed. Continuing without change tracking.";
+                    await Task.Delay(1500);
+                }
+            }
+            
             if (!HasErrors)
             {
                 StatusMessage = $"Successfully bulk imported {translationFiles.Count} file(s) from {selectedDirectories.Count} repositor{(selectedDirectories.Count == 1 ? "y" : "ies")}. Review the imported files and click 'Confirm & Continue'.";
@@ -2319,7 +2341,10 @@ public partial class MainWindowViewModel : ViewModelBase
                 DeploymentValidationMessage = DeploymentValidationMessage,
                 ShowDeploymentSuccess = ShowDeploymentSuccess,
                 DeploymentSuccessMessage = DeploymentSuccessMessage,
-                DeploymentHistory = DeploymentHistory.ToList()
+                DeploymentHistory = DeploymentHistory.ToList(),
+                
+                // Change tracking metadata
+                ChangeMetadata = _changeMetadata
             };
 
             _progressService.SaveProgress(sessionState);
@@ -3067,6 +3092,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 DeploymentHistory.Add(entry);
             }
             
+            // Restore change tracking metadata
+            _changeMetadata = sessionState.ChangeMetadata;
+            
             // Notify property changes for deployment-related computed properties
             if (DeploymentPreviewItems.Count > 0)
             {
@@ -3377,6 +3405,18 @@ public partial class MainWindowViewModel : ViewModelBase
                     if (fileChangeInfo.ModifiedKeys.Count > 0 || fileChangeInfo.AddedKeys.Count > 0)
                     {
                         repoChangeInfo.Files.Add(fileChangeInfo);
+                        
+                        // Update file pair badge counts
+                        var filePair = FilePairs.FirstOrDefault(fp => 
+                            fp.BaseName == source.Name && 
+                            fp.FileType == source.Type && 
+                            fp.DirectoryPath == source.DirectoryPath);
+                        
+                        if (filePair != null)
+                        {
+                            filePair.ModifiedCount = fileChangeInfo.ModifiedKeys.Count;
+                            filePair.AddedCount = fileChangeInfo.AddedKeys.Count;
+                        }
                     }
                 }
 

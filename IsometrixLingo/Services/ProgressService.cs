@@ -47,7 +47,8 @@ public class ProgressService
                 IsModified = tk.IsModified,
                 OriginalValues = new Dictionary<string, string>(tk.OriginalValues),
                 ModifiedLanguages = tk.ModifiedLanguages.ToList(),
-                ShowOriginalForThisRow = tk.ShowOriginalForThisRow
+                ShowOriginalForThisRow = tk.ShowOriginalForThisRow,
+                ChangeType = tk.ChangeType
             }).ToList(),
             ImportedFileNames = state.ImportedFileNames,
             ResxTemplates = state.ResxTemplates,
@@ -84,7 +85,10 @@ public class ProgressService
                 FileCount = dh.FileCount,
                 Success = dh.Success,
                 DeploymentRoot = dh.DeploymentRoot
-            }).ToList()
+            }).ToList(),
+            
+            // Change tracking metadata
+            ChangeMetadata = state.ChangeMetadata
         };
 
         var json = JsonSerializer.Serialize(serializableState, AppJsonSerializerContext.Default.SerializableSessionState);
@@ -130,7 +134,8 @@ public class ProgressService
                         IsModified = stk.IsModified,
                         OriginalValues = new Dictionary<string, string>(stk.OriginalValues),
                         ModifiedLanguages = new HashSet<string>(stk.ModifiedLanguages),
-                        ShowOriginalForThisRow = stk.ShowOriginalForThisRow
+                        ShowOriginalForThisRow = stk.ShowOriginalForThisRow,
+                        ChangeType = stk.ChangeType
                     };
                     key.UpdateMissingTranslationsStatus();
                     return key;
@@ -170,7 +175,10 @@ public class ProgressService
                     FileCount = sdh.FileCount,
                     Success = sdh.Success,
                     DeploymentRoot = sdh.DeploymentRoot
-                }).ToList()
+                }).ToList(),
+                
+                // Change tracking metadata
+                ChangeMetadata = serializableState.ChangeMetadata
             };
 
             return sessionState;

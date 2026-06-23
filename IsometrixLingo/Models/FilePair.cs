@@ -36,7 +36,15 @@ public partial class FilePair : ObservableObject
     [ObservableProperty]
     private bool _createMissingSpanish;
 
+    [ObservableProperty]
+    private int _modifiedCount;
+
+    [ObservableProperty]
+    private int _addedCount;
+
     public bool IsMissingFile => !HasEnglishFile || !HasSpanishFile;
+
+    public bool HasChanges => ModifiedCount > 0 || AddedCount > 0;
 
     public string DisplayName => $"{BaseName} ({FileType})";
 
