@@ -34,6 +34,9 @@ public partial class TranslationKey : ObservableObject
     [ObservableProperty]
     private Dictionary<string, Suggestion> _suggestedValues = new();
 
+    [ObservableProperty]
+    private ChangeType _changeType = ChangeType.None;
+
     /// <summary>
     /// Check if a specific language value has been modified
     /// </summary>
