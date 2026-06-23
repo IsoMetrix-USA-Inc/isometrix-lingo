@@ -26,6 +26,8 @@
         <converters:RowToggleEnabledConverter x:Key="RowToggleEnabledConverter"/>
         <converters:MissingTranslationBorderConverter x:Key="MissingTranslationBorderConverter"/>
         <converters:ConfirmationForegroundConverter x:Key="ConfirmationForegroundConverter"/>
+        <converters:ChangeTypeToBackgroundConverter x:Key="ChangeTypeToBackgroundConverter"/>
+        <converters:RowBackgroundConverter x:Key="RowBackgroundConverter"/>
     </Window.Resources>
     
     <Window.Styles>
@@ -801,6 +803,9 @@
                                         <CheckBox Content="Only With Suggestions"
                                                   IsChecked="{Binding ShowOnlyWithSuggestions}"
                                                   ToolTip.Tip="Show only keys that have suggestions"/>
+                                        <CheckBox Content="Only Modified/Added Keys"
+                                                  IsChecked="{Binding ShowOnlyModifiedOrAdded}"
+                                                  ToolTip.Tip="Show only keys that were modified or added since last release"/>
                                     </StackPanel>
                                 </Flyout>
                             </Button.Flyout>
@@ -923,7 +928,14 @@
                                   ToolTip.Tip="{Binding CurrentMode, Converter={StaticResource EditModeTooltipConverter}}">                                  
                             <DataGrid.Styles>
                                 <Style Selector="DataGridRow" x:DataType="models:TranslationKey">
-                                    <Setter Property="Background" Value="{Binding HasMissingTranslations, Converter={StaticResource MissingTranslationBorderConverter}}"/>
+                                    <Setter Property="Background">
+                                        <Setter.Value>
+                                            <MultiBinding Converter="{StaticResource RowBackgroundConverter}">
+                                                <Binding Path="HasMissingTranslations"/>
+                                                <Binding Path="ChangeType"/>
+                                            </MultiBinding>
+                                        </Setter.Value>
+                                    </Setter>
                                 </Style>
                             </DataGrid.Styles>
                         </DataGrid>

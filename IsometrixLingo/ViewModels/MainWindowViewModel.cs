@@ -132,6 +132,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool _showOnlyWithSuggestions;
 
     [ObservableProperty]
+    private bool _showOnlyModifiedOrAdded;
+
+    [ObservableProperty]
     private bool _showFilters = true;
 
     [ObservableProperty]
@@ -1718,6 +1721,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ShowOriginalValues = false;
         ShowOnlyMissingTranslations = false;
         ShowOnlyWithSuggestions = false;
+        ShowOnlyModifiedOrAdded = false;
         _translationStore.FilterBySourceFiles(null!);
         _translationStore.FilterBySearchTerm(string.Empty);
         UpdateStatusMessage();
@@ -1744,6 +1748,12 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnShowOnlyWithSuggestionsChanged(bool value)
     {
         _translationStore.FilterBySuggestions(value);
+        UpdateStatusMessage();
+    }
+
+    partial void OnShowOnlyModifiedOrAddedChanged(bool value)
+    {
+        _translationStore.FilterByChangeType(value);
         UpdateStatusMessage();
     }
 

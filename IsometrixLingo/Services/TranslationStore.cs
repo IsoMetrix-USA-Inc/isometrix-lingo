@@ -19,6 +19,7 @@ public class TranslationStore
     private string _currentSearchTerm = string.Empty;
     private bool _showOnlyMissingTranslations = false;
     private bool _showOnlyWithSuggestions = false;
+    private bool _showOnlyModifiedOrAdded = false;
     private bool _hasUnsavedChanges = false;
 
     public ObservableCollection<TranslationKey> FilteredKeys => _filteredKeys;
@@ -146,6 +147,12 @@ public class TranslationStore
         ApplyFilters();
     }
 
+    public void FilterByChangeType(bool showOnlyModifiedOrAdded)
+    {
+        _showOnlyModifiedOrAdded = showOnlyModifiedOrAdded;
+        ApplyFilters();
+    }
+
     private void ApplyFilters()
     {
         _filteredKeys.Clear();
@@ -186,6 +193,12 @@ public class TranslationStore
         if (_showOnlyWithSuggestions)
         {
             keysToShow = keysToShow.Where(k => k.HasAnySuggestions);
+        }
+
+        // Apply change type filter if enabled
+        if (_showOnlyModifiedOrAdded)
+        {
+            keysToShow = keysToShow.Where(k => k.ChangeType != ChangeType.None);
         }
 
         foreach (var key in keysToShow)
