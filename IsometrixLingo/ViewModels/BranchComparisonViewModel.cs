@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using IsometrixLingo.Models;
 using IsometrixLingo.Services;
 
 namespace IsometrixLingo.ViewModels;
@@ -57,6 +58,21 @@ public partial class BranchComparisonViewModel : ViewModelBase
         // Design-time constructor
         _gitDiffService = new GitDiffService();
         _repositoryPaths = new List<string>();
+    }
+
+    public BranchComparisonViewModel(List<DirectoryScanResult> selectedRepositories, GitDiffService gitDiffService)
+    {
+        _gitDiffService = gitDiffService;
+        _repositoryPaths = selectedRepositories.Select(r => r.DirectoryPath).ToList();
+        _currentRepositoryIndex = 0;
+        TotalRepositories = _repositoryPaths.Count;
+
+        if (_repositoryPaths.Count > 0)
+        {
+            LoadRepository(0);
+        }
+
+        UpdateNavigationState();
     }
 
     public BranchComparisonViewModel(List<string> repositoryPaths)

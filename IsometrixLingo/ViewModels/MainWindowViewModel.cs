@@ -195,6 +195,14 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private ObservableCollection<DeploymentHistoryEntry> _deploymentHistory = new();
 
+    // Git change detection properties
+    [ObservableProperty]
+    private bool _detectChanges = true; // Default to enabled
+
+    private Dictionary<string, (string baseBranch, string targetBranch)> _branchConfigurations = new();
+    private readonly GitDiffService _gitDiffService = new();
+    private List<DirectoryScanResult> _selectedRepositories = new();
+
     public bool HasSuggestedDeploymentRoot => !string.IsNullOrWhiteSpace(SuggestedDeploymentRoot);
     public bool HasDeploymentPreview => DeploymentPreviewItems.Count > 0;
     public bool HasValidationMessage => !string.IsNullOrWhiteSpace(ValidationMessage);
@@ -800,6 +808,10 @@ public partial class MainWindowViewModel : ViewModelBase
             
             // Then, gather files from selected subdirectories (recursive)
             var selectedDirectories = selectorViewModel.Directories.Where(d => d.IsSelected).ToList();
+            
+            // Store selected repositories for git change detection (used later in ConfirmImport)
+            _selectedRepositories = selectedDirectories;
+            
             foreach (var dir in selectedDirectories)
             {
                 allFilesToImport.AddRange(dir.TranslationFiles);
@@ -1073,6 +1085,10 @@ public partial class MainWindowViewModel : ViewModelBase
             
             // Then, gather files from selected subdirectories (recursive)
             var selectedDirectories = selectorViewModel.Directories.Where(d => d.IsSelected).ToList();
+            
+            // Store selected repositories for git change detection (used later in ConfirmImport)
+            _selectedRepositories = selectedDirectories;
+            
             foreach (var dir in selectedDirectories)
             {
                 allFilesToImport.AddRange(dir.TranslationFiles);
@@ -2428,7 +2444,7 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void ConfirmImport()
+    private async Task ConfirmImport(Window window)
     {
         try
         {
@@ -2436,6 +2452,29 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 StatusMessage = "Please import at least one file before continuing.";
                 return;
+            }
+
+            // If change detection is enabled, IsDeveloper is true, and we have selected repositories, show BranchComparisonDialog
+            if (DetectChanges && IsDeveloper && _selectedRepositories.Count > 0)
+            {
+                var branchViewModel = new BranchComparisonViewModel(_selectedRepositories, _gitDiffService);
+                var branchDialog = new BranchComparisonDialog
+                {
+                    DataContext = branchViewModel
+                };
+
+                var result = await branchDialog.ShowDialog<Dictionary<string, (string, string)>?>(window);
+                
+                if (result == null)
+                {
+                    // User cancelled - don't proceed to Step 2
+                    StatusMessage = "Branch configuration cancelled. Please configure branches to continue.";
+                    return;
+                }
+
+                // Store branch configurations for later use in Step 2
+                _branchConfigurations = result;
+                StatusMessage = $"Branch configuration complete. Configured {result.Count} repositor{(result.Count == 1 ? "y" : "ies")}.";
             }
 
             ImportStepStatus = StepStatus.Completed;

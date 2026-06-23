@@ -176,20 +176,31 @@
             <DockPanel IsVisible="{Binding ShowImportStep}" LastChildFill="True">
                     <!-- Buttons at bottom -->
                     <StackPanel DockPanel.Dock="Bottom"
-                                Orientation="Horizontal" 
-                                HorizontalAlignment="Right" 
+                                Orientation="Vertical"
                                 Spacing="10"
                                 Margin="0,15,0,0">
-                        <Button Content="{Binding StartOverButtonText}"
-                                Command="{Binding StartOverCommand}"
-                                IsEnabled="{Binding HasKeys}"
-                                Padding="15,8"/>
-                        <Button Content="Next →"
-                                Classes="PrimaryButton"
-                                Command="{Binding ConfirmImportCommand}"
-                                IsEnabled="{Binding HasKeys}"
-                                Padding="15,8"
-                                FontWeight="SemiBold"/>
+                        <!-- Change Detection Checkbox (Developer only) -->
+                        <CheckBox Content="Detect changes since last release (compare with git branches)"
+                                  IsChecked="{Binding DetectChanges}"
+                                  IsVisible="{Binding IsDeveloper}"
+                                  Margin="0,0,0,5"/>
+                        
+                        <!-- Action Buttons -->
+                        <StackPanel Orientation="Horizontal" 
+                                    HorizontalAlignment="Right" 
+                                    Spacing="10">
+                            <Button Content="{Binding StartOverButtonText}"
+                                    Command="{Binding StartOverCommand}"
+                                    IsEnabled="{Binding HasKeys}"
+                                    Padding="15,8"/>
+                            <Button Content="Next →"
+                                    Classes="PrimaryButton"
+                                    Command="{Binding ConfirmImportCommand}"
+                                    CommandParameter="{Binding $parent[Window]}"
+                                    IsEnabled="{Binding HasKeys}"
+                                    Padding="15,8"
+                                    FontWeight="SemiBold"/>
+                        </StackPanel>
                     </StackPanel>
 
                     <!-- Header at top -->
