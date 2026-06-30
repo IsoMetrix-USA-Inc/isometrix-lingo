@@ -15,11 +15,8 @@ public partial class BranchComparisonDialog : Window
     {
         if (DataContext is BranchComparisonViewModel viewModel)
         {
-            // Validate and save the current repository configuration before confirming
-            viewModel.ValidateBranchesCommand.Execute(null);
-
-            // Now check if we can confirm (all repos configured)
-            if (viewModel.CanConfirm)
+            // Only close with a result when every repository has valid branches
+            if (viewModel.TryBuildConfigurations())
             {
                 Close(viewModel.BranchConfigurations);
             }
@@ -29,27 +26,5 @@ public partial class BranchComparisonDialog : Window
     private void Cancel_Click(object? sender, RoutedEventArgs e)
     {
         Close(null);
-    }
-
-    private void DeployedBranch_LostFocus(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is BranchComparisonViewModel viewModel && sender is TextBox textBox)
-        {
-            if (!string.IsNullOrWhiteSpace(textBox.Text))
-            {
-                viewModel.ValidateBranchesCommand.Execute(null);
-            }
-        }
-    }
-
-    private void ReleaseBranch_LostFocus(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is BranchComparisonViewModel viewModel && sender is TextBox textBox)
-        {
-            if (!string.IsNullOrWhiteSpace(textBox.Text))
-            {
-                viewModel.ValidateBranchesCommand.Execute(null);
-            }
-        }
     }
 }
