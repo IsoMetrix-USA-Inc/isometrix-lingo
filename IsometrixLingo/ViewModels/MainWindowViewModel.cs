@@ -3333,6 +3333,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private async Task RunGitChangeDetection()
     {
+        var logFile = Path.Combine(Path.GetTempPath(), "isometrix-lingo-git-diff.log");
+        StatusMessage = $"Git diff log: {logFile}";
+        await Task.Delay(2000);
+        
         StatusMessage = $"Starting git change detection for {_branchConfigurations.Count} repositor{(_branchConfigurations.Count == 1 ? "y" : "ies")}";
         await Task.Delay(1500);
         

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using LibGit2Sharp;
@@ -9,6 +10,27 @@ namespace IsometrixLingo.Services;
 
 public class GitDiffService
 {
+    private static readonly string LogFile = Path.Combine(Path.GetTempPath(), "isometrix-lingo-git-diff.log");
+    
+    public GitDiffService()
+    {
+        // Clear log file on startup
+        try
+        {
+            File.WriteAllText(LogFile, $"=== Git Diff Log Started at {DateTime.Now:yyyy-MM-dd HH:mm:ss} ===\n");
+            File.AppendAllText(LogFile, $"Log file location: {LogFile}\n\n");
+        }
+        catch { /* Ignore */ }
+    }
+    
+    private void Log(string message)
+    {
+        try
+        {
+            File.AppendAllText(LogFile, $"[{DateTime.Now:HH:mm:ss.fff}] {message}\n");
+        }
+        catch { /* Ignore logging errors */ }
+    }
     /// <summary>
     /// Fetches the latest changes from the remote repository.
     /// </summary>
@@ -139,34 +161,34 @@ public class GitDiffService
 
             if (deployedCommit == null)
             {
-                Console.WriteLine($"[GitDiff] Deployed branch '{deployedBranch}' not found!");
+                Log($"[GitDiff] Deployed branch '{deployedBranch}' not found!");
                 return null;
             }
             
             if (releaseCommit == null)
             {
-                Console.WriteLine($"[GitDiff] Release branch '{releaseBranch}' not found!");
+                Log($"[GitDiff] Release branch '{releaseBranch}' not found!");
                 return null;
             }
 
-            Console.WriteLine($"[GitDiff] Comparing {deployedBranch} ({deployedCommit.Sha[..7]}) → {releaseBranch} ({releaseCommit.Sha[..7]}) for file: {filePath}");
+            Log($"[GitDiff] Comparing {deployedBranch} ({deployedCommit.Sha[..7]}) → {releaseBranch} ({releaseCommit.Sha[..7]}) for file: {filePath}");
 
             var patch = repo.Diff.Compare<Patch>(deployedCommit.Tree, releaseCommit.Tree, new[] { filePath });
 
             if (patch == null || string.IsNullOrWhiteSpace(patch.Content))
             {
-                Console.WriteLine($"[GitDiff] NO CHANGES in {filePath}");
+                Log($"[GitDiff] NO CHANGES in {filePath}");
                 return null;
             }
 
-            Console.WriteLine($"[GitDiff] Found {patch.Content.Length} chars of diff for {filePath}");
-            Console.WriteLine($"[GitDiff] Diff preview: {patch.Content.Substring(0, Math.Min(200, patch.Content.Length))}");
+            Log($"[GitDiff] Found {patch.Content.Length} chars of diff for {filePath}");
+            Log($"[GitDiff] Diff preview: {patch.Content.Substring(0, Math.Min(200, patch.Content.Length))}");
 
             return patch.Content;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[GitDiff] ERROR: {ex.Message}");
+            Log($"[GitDiff] ERROR: {ex.Message}");
             return null;
         }
     }
@@ -182,11 +204,11 @@ public class GitDiffService
 
         if (string.IsNullOrWhiteSpace(diffContent))
         {
-            Console.WriteLine("[ParseJsonDiff] Empty diff content");
+            Log("[ParseJsonDiff] Empty diff content");
             return changes;
         }
 
-        Console.WriteLine($"[ParseJsonDiff] Parsing {diffContent.Length} chars of diff");
+        Log($"[ParseJsonDiff] Parsing {diffContent.Length} chars of diff");
 
         // Parse git diff format:
         // Lines starting with - are removed
@@ -206,7 +228,7 @@ public class GitDiffService
                 var key = ExtractKeyFromJsonLine(trimmed.Substring(1).Trim());
                 if (!string.IsNullOrEmpty(key))
                 {
-                    Console.WriteLine($"[ParseJsonDiff] Found ADDED line: {trimmed.Substring(0, Math.Min(80, trimmed.Length))} → key: {key}");
+                    Log($"[ParseJsonDiff] Found ADDED line: {trimmed.Substring(0, Math.Min(80, trimmed.Length))} → key: {key}");
                     addedKeys.Add(key);
                 }
             }
@@ -215,7 +237,7 @@ public class GitDiffService
                 var key = ExtractKeyFromJsonLine(trimmed.Substring(1).Trim());
                 if (!string.IsNullOrEmpty(key))
                 {
-                    Console.WriteLine($"[ParseJsonDiff] Found REMOVED line: {trimmed.Substring(0, Math.Min(80, trimmed.Length))} → key: {key}");
+                    Log($"[ParseJsonDiff] Found REMOVED line: {trimmed.Substring(0, Math.Min(80, trimmed.Length))} → key: {key}");
                     removedKeys.Add(key);
                 }
             }
@@ -228,16 +250,16 @@ public class GitDiffService
             if (removedKeys.Contains(key))
             {
                 changes[key] = ChangeType.Modified;
-                Console.WriteLine($"[ParseJsonDiff] → MODIFIED: {key}");
+                Log($"[ParseJsonDiff] → MODIFIED: {key}");
             }
             else
             {
                 changes[key] = ChangeType.Added;
-                Console.WriteLine($"[ParseJsonDiff] → ADDED: {key}");
+                Log($"[ParseJsonDiff] → ADDED: {key}");
             }
         }
 
-        Console.WriteLine($"[ParseJsonDiff] Returning {changes.Count} change{(changes.Count == 1 ? "" : "s")}");
+        Log($"[ParseJsonDiff] Returning {changes.Count} change{(changes.Count == 1 ? "" : "s")}");
         return changes;
     }
 
@@ -252,11 +274,11 @@ public class GitDiffService
 
         if (string.IsNullOrWhiteSpace(diffContent))
         {
-            Console.WriteLine("[ParseResxDiff] Empty diff content");
+            Log("[ParseResxDiff] Empty diff content");
             return changes;
         }
 
-        Console.WriteLine($"[ParseResxDiff] Parsing {diffContent.Length} chars of diff");
+        Log($"[ParseResxDiff] Parsing {diffContent.Length} chars of diff");
 
         // Parse RESX diff format
         // Look for <data name="key"> elements
@@ -274,7 +296,7 @@ public class GitDiffService
                 var key = ExtractKeyFromResxLine(trimmed.Substring(1).Trim());
                 if (!string.IsNullOrEmpty(key))
                 {
-                    Console.WriteLine($"[ParseResxDiff] Found ADDED line: {trimmed.Substring(0, Math.Min(80, trimmed.Length))} → key: {key}");
+                    Log($"[ParseResxDiff] Found ADDED line: {trimmed.Substring(0, Math.Min(80, trimmed.Length))} → key: {key}");
                     addedKeys.Add(key);
                 }
             }
@@ -283,7 +305,7 @@ public class GitDiffService
                 var key = ExtractKeyFromResxLine(trimmed.Substring(1).Trim());
                 if (!string.IsNullOrEmpty(key))
                 {
-                    Console.WriteLine($"[ParseResxDiff] Found REMOVED line: {trimmed.Substring(0, Math.Min(80, trimmed.Length))} → key: {key}");
+                    Log($"[ParseResxDiff] Found REMOVED line: {trimmed.Substring(0, Math.Min(80, trimmed.Length))} → key: {key}");
                     removedKeys.Add(key);
                 }
             }
@@ -296,16 +318,16 @@ public class GitDiffService
             if (removedKeys.Contains(key))
             {
                 changes[key] = ChangeType.Modified;
-                Console.WriteLine($"[ParseResxDiff] → MODIFIED: {key}");
+                Log($"[ParseResxDiff] → MODIFIED: {key}");
             }
             else
             {
                 changes[key] = ChangeType.Added;
-                Console.WriteLine($"[ParseResxDiff] → ADDED: {key}");
+                Log($"[ParseResxDiff] → ADDED: {key}");
             }
         }
 
-        Console.WriteLine($"[ParseResxDiff] Returning {changes.Count} change{(changes.Count == 1 ? "" : "s")}");
+        Log($"[ParseResxDiff] Returning {changes.Count} change{(changes.Count == 1 ? "" : "s")}");
         return changes;
     }
 
