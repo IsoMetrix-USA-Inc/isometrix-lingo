@@ -205,20 +205,12 @@ public partial class MainWindowViewModel : ViewModelBase
     private Dictionary<string, (string deployedBranch, string releaseBranch)> _branchConfigurations = new();
     private readonly GitDiffService _gitDiffService = new();
     private List<DirectoryScanResult> _selectedRepositories = new();
-    
     private ChangeMetadata? _changeMetadata = null;
-    private ChangeMetadata? ChangeMetadata
-    {
-        get => _changeMetadata;
-        set
-        {
-            _changeMetadata = value;
-            OnPropertyChanged(nameof(ShowDetectChangesCheckbox));
-        }
-    }
-
-    // Show detect changes checkbox only if developer and no metadata already loaded
-    public bool ShowDetectChangesCheckbox => IsDeveloper && _changeMetadata == null;
+    
+    [ObservableProperty]
+    private bool _metadataLoadedFromImport = false; // Track if metadata came from import
+    
+    public bool ShowDetectChangesCheckbox => IsDeveloper && !MetadataLoadedFromImport;
 
     public bool HasSuggestedDeploymentRoot => !string.IsNullOrWhiteSpace(SuggestedDeploymentRoot);
     public bool HasDeploymentPreview => DeploymentPreviewItems.Count > 0;
@@ -1341,7 +1333,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 {
                     var allKeys = _translationStore.GetAllKeys();
                     metadataService.ApplyMetadataToKeys(metadata, allKeys, parentPath);
-                    ChangeMetadata = metadata;
+                    _changeMetadata = metadata;
+                    MetadataLoadedFromImport = true;
 
                     var totalChanges = allKeys.Count(k => k.ChangeType != ChangeType.None);
                     StatusMessage = $"Loaded change metadata: {totalChanges} modified/added key{(totalChanges == 1 ? "" : "s")} detected.";
@@ -2450,6 +2443,13 @@ public partial class MainWindowViewModel : ViewModelBase
         HasKeys = false;
         HasUnsavedChanges = false;
         _rootDirectoryPath = null; // Reset root directory
+        
+        // Reset git change detection state
+        _changeMetadata = null;
+        _branchConfigurations.Clear();
+        _selectedRepositories.Clear();
+        MetadataLoadedFromImport = false;
+        DetectChanges = true; // Reset to default
 
         // Reset workflow state
         CurrentStep = WorkflowStep.Import;
@@ -2504,8 +2504,8 @@ public partial class MainWindowViewModel : ViewModelBase
             }
 
             // If change detection is enabled, IsDeveloper is true, we have selected repositories,
-            // AND we don't already have metadata from import, show BranchComparisonDialog
-            if (DetectChanges && IsDeveloper && _selectedRepositories.Count > 0 && _changeMetadata == null)
+            // AND we don't already have metadata loaded from import, show BranchComparisonDialog
+            if (DetectChanges && IsDeveloper && _selectedRepositories.Count > 0 && !MetadataLoadedFromImport)
             {
                 var branchViewModel = new BranchComparisonViewModel(_selectedRepositories, _gitDiffService);
                 var branchDialog = new BranchComparisonDialog
@@ -2526,7 +2526,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 _branchConfigurations = result;
                 StatusMessage = $"Branch configuration complete. Configured {result.Count} repositor{(result.Count == 1 ? "y" : "ies")}.";
             }
-            else if (_changeMetadata != null)
+            else if (MetadataLoadedFromImport)
             {
                 StatusMessage = "Change metadata already loaded from import. Skipping branch configuration.";
             }
@@ -3331,7 +3331,7 @@ public partial class MainWindowViewModel : ViewModelBase
             var processedRepos = 0;
 
             // Initialize change metadata
-            ChangeMetadata = new ChangeMetadata
+            _changeMetadata = new ChangeMetadata
             {
                 ExtractionTimestamp = DateTime.UtcNow,
                 SchemaVersion = "1.0"

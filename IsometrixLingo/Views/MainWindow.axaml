@@ -181,7 +181,7 @@
                                 Orientation="Vertical"
                                 Spacing="10"
                                 Margin="0,15,0,0">
-                        <!-- Change Detection Checkbox (Developer only, hidden if metadata already loaded) -->
+                        <!-- Change Detection Checkbox (Developer only, hidden if metadata loaded from import) -->
                         <CheckBox Content="Detect changes since last release (compare with git branches)"
                                   IsChecked="{Binding DetectChanges}"
                                   IsVisible="{Binding ShowDetectChangesCheckbox}"
