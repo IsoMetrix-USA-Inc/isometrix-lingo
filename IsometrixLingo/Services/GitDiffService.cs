@@ -124,6 +124,7 @@ public class GitDiffService
     /// <returns>List of changed file paths, or empty list if error occurs</returns>
     public List<string> GetChangedFiles(string repoPath, string deployedBranch, string releaseBranch)
     {
+        Log($"GetChangedFiles: repo='{repoPath}', deployed='{deployedBranch}', release='{releaseBranch}'");
         var changedFiles = new List<string>();
         
         try
@@ -133,22 +134,33 @@ public class GitDiffService
             var deployedCommit = repo.Branches[deployedBranch]?.Tip;
             var releaseCommit = repo.Branches[releaseBranch]?.Tip;
             
-            if (deployedCommit == null || releaseCommit == null)
+            if (deployedCommit == null)
             {
+                Log($"GetChangedFiles: Deployed branch '{deployedBranch}' NOT FOUND");
+                return changedFiles;
+            }
+            
+            if (releaseCommit == null)
+            {
+                Log($"GetChangedFiles: Release branch '{releaseBranch}' NOT FOUND");
                 return changedFiles;
             }
 
+            Log($"GetChangedFiles: Comparing trees...");
             var changes = repo.Diff.Compare<TreeChanges>(deployedCommit.Tree, releaseCommit.Tree);
             
             foreach (var change in changes)
             {
                 changedFiles.Add(change.Path);
+                Log($"GetChangedFiles: Found changed file: {change.Path}");
             }
             
+            Log($"GetChangedFiles: Returning {changedFiles.Count} changed file{(changedFiles.Count == 1 ? "" : "s")}");
             return changedFiles;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Log($"GetChangedFiles: ERROR - {ex.Message}");
             return changedFiles;
         }
     }
