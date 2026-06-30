@@ -1,15 +1,17 @@
 using System;
 using System.Globalization;
+using Avalonia;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
+using Avalonia.Styling;
 using IsometrixLingo.Models;
 
 namespace IsometrixLingo.Converters;
 
 /// <summary>
 /// Converter that returns background color based on ChangeType
-/// Modified keys: light amber (#FFF3CD)
-/// Added keys: light teal (#D1ECF1)
+/// Modified keys: amber (theme-aware)
+/// Added keys: blue (theme-aware)
 /// None: transparent
 /// </summary>
 public class ChangeTypeToBackgroundConverter : IValueConverter
@@ -18,10 +20,16 @@ public class ChangeTypeToBackgroundConverter : IValueConverter
     {
         if (value is ChangeType changeType)
         {
+            var isDarkMode = Application.Current?.ActualThemeVariant == ThemeVariant.Dark;
+
             return changeType switch
             {
-                ChangeType.Modified => new SolidColorBrush(Color.FromRgb(0xFF, 0xF3, 0xCD)), // Light amber
-                ChangeType.Added => new SolidColorBrush(Color.FromRgb(0xD1, 0xEC, 0xF1)),    // Light teal
+                ChangeType.Modified => isDarkMode
+                    ? new SolidColorBrush(Color.FromArgb(100, 255, 193, 7))   // Dark mode: Brighter amber with transparency
+                    : new SolidColorBrush(Color.FromRgb(255, 224, 130)),      // Light mode: Darker amber
+                ChangeType.Added => isDarkMode
+                    ? new SolidColorBrush(Color.FromArgb(100, 3, 169, 244))   // Dark mode: Brighter blue with transparency
+                    : new SolidColorBrush(Color.FromRgb(179, 229, 252)),      // Light mode: Light blue
                 _ => Brushes.Transparent
             };
         }

@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using Avalonia;
 using Avalonia.Data.Converters;
 using Avalonia.Media;
+using Avalonia.Styling;
 using IsometrixLingo.Models;
 
 namespace IsometrixLingo.Converters;
@@ -10,6 +12,7 @@ namespace IsometrixLingo.Converters;
 /// <summary>
 /// Converter that returns background color based on both HasMissingTranslations and ChangeType
 /// Priority: Missing translations (red) > Modified (amber) > Added (teal) > None (transparent)
+/// Theme-aware: Uses different colors for light and dark modes
 /// </summary>
 public class RowBackgroundConverter : IMultiValueConverter
 {
@@ -19,17 +22,23 @@ public class RowBackgroundConverter : IMultiValueConverter
             values[0] is bool hasMissingTranslations &&
             values[1] is ChangeType changeType)
         {
+            var isDarkMode = Application.Current?.ActualThemeVariant == ThemeVariant.Dark;
+
             // Priority 1: Missing translations (most important)
             if (hasMissingTranslations)
             {
-                return new SolidColorBrush(Color.FromArgb(70, 255, 80, 80)); // Red background
+                return new SolidColorBrush(Color.FromArgb(70, 255, 80, 80)); // Red background (same for both themes)
             }
 
-            // Priority 2: Change type indicators
+            // Priority 2: Change type indicators (theme-aware)
             return changeType switch
             {
-                ChangeType.Modified => new SolidColorBrush(Color.FromRgb(0xFF, 0xF3, 0xCD)), // Light amber
-                ChangeType.Added => new SolidColorBrush(Color.FromRgb(0xD1, 0xEC, 0xF1)),    // Light teal
+                ChangeType.Modified => isDarkMode
+                    ? new SolidColorBrush(Color.FromArgb(100, 255, 193, 7))   // Dark mode: Brighter amber with transparency
+                    : new SolidColorBrush(Color.FromRgb(255, 224, 130)),      // Light mode: Darker amber
+                ChangeType.Added => isDarkMode
+                    ? new SolidColorBrush(Color.FromArgb(100, 3, 169, 244))   // Dark mode: Brighter blue with transparency
+                    : new SolidColorBrush(Color.FromRgb(179, 229, 252)),      // Light mode: Light blue
                 _ => Brushes.Transparent
             };
         }
