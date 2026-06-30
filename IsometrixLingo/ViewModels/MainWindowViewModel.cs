@@ -3355,6 +3355,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 var deployedCommit = _gitDiffService.GetCommitHash(repoPath, branches.deployedBranch) ?? string.Empty;
                 var releaseCommit = _gitDiffService.GetCommitHash(repoPath, branches.releaseBranch) ?? string.Empty;
 
+                StatusMessage = $"Deployed commit: {(string.IsNullOrEmpty(deployedCommit) ? "NOT FOUND" : deployedCommit[..7])}, Release commit: {(string.IsNullOrEmpty(releaseCommit) ? "NOT FOUND" : releaseCommit[..7])}";
+                await Task.Delay(1000); // Show commit info
+
                 // Create repository change info
                 var repoChangeInfo = new RepositoryChangeInfo
                 {
@@ -3391,6 +3394,9 @@ public partial class MainWindowViewModel : ViewModelBase
                     // Run git diff on this file
                     var diffContent = _gitDiffService.GetFileDiff(repoPath, branches.deployedBranch, branches.releaseBranch, relativeFilePath);
 
+                    StatusMessage = $"Checking {relativeFilePath}: {(string.IsNullOrEmpty(diffContent) ? "NO CHANGES" : "HAS CHANGES")}";
+                    await Task.Delay(500);
+
                     if (string.IsNullOrEmpty(diffContent))
                         continue;
 
@@ -3398,6 +3404,9 @@ public partial class MainWindowViewModel : ViewModelBase
                     Dictionary<string, ChangeType> changes = source.Type == FileType.Json
                         ? _gitDiffService.ParseJsonDiff(diffContent)
                         : _gitDiffService.ParseResxDiff(diffContent);
+
+                    StatusMessage = $"Parsed {changes.Count} change{(changes.Count == 1 ? "" : "s")} from {relativeFilePath}";
+                    await Task.Delay(500);
 
                     // Create file change info for metadata
                     var fileChangeInfo = new FileChangeInfo
