@@ -58,26 +58,26 @@
 
         <!-- Branch Configuration -->
         <StackPanel Grid.Row="2" Spacing="15" Margin="0,0,0,20">
-            <!-- Base Branch -->
+            <!-- Deployed Branch -->
             <StackPanel Spacing="5">
-                <TextBlock Text="Base Branch (existing release):"
+                <TextBlock Text="Deployed Branch (current production):" 
                            FontWeight="SemiBold"/>
-                <TextBox Text="{Binding BaseBranch}"
-                         PlaceholderText="e.g., develop, main, master"
-                         LostFocus="BaseBranch_LostFocus"/>
-                <TextBlock Text="The branch containing the previous release version."
+                <TextBox Text="{Binding DeployedBranch}"
+                         PlaceholderText="e.g., origin/main, origin/master"
+                         LostFocus="DeployedBranch_LostFocus"/>
+                <TextBlock Text="The branch currently deployed in production."
                            FontSize="11"
                            Foreground="#666"/>
             </StackPanel>
 
-            <!-- Target Branch -->
+            <!-- Release Branch -->
             <StackPanel Spacing="5">
-                <TextBlock Text="Target Branch (new release):"
+                <TextBlock Text="Release Branch (new release candidate):"
                            FontWeight="SemiBold"/>
-                <TextBox Text="{Binding TargetBranch}"
-                         PlaceholderText="e.g., release/v5.0.0, feature/LP-13426"
-                         LostFocus="TargetBranch_LostFocus"/>
-                <TextBlock Text="The branch containing the new changes to review."
+                <TextBox Text="{Binding ReleaseBranch}"
+                         PlaceholderText="e.g., origin/release/v5.0.0"
+                         LostFocus="ReleaseBranch_LostFocus"/>
+                <TextBlock Text="The branch containing changes for the new release."
                            FontSize="11"
                            Foreground="#666"/>
             </StackPanel>

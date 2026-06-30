@@ -19,10 +19,10 @@ public class ChangeMetadata
 public class RepositoryChangeInfo
 {
     public string Path { get; set; } = string.Empty;
-    public string BaseBranch { get; set; } = string.Empty;
-    public string TargetBranch { get; set; } = string.Empty;
-    public string BaseCommit { get; set; } = string.Empty;
-    public string TargetCommit { get; set; } = string.Empty;
+    public string DeployedBranch { get; set; } = string.Empty;
+    public string ReleaseBranch { get; set; } = string.Empty;
+    public string DeployedCommit { get; set; } = string.Empty;
+    public string ReleaseCommit { get; set; } = string.Empty;
     public List<FileChangeInfo> Files { get; set; } = new();
 }
 

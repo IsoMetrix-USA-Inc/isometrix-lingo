@@ -202,7 +202,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool _detectChanges = true; // Default to enabled
 
-    private Dictionary<string, (string baseBranch, string targetBranch)> _branchConfigurations = new();
+    private Dictionary<string, (string deployedBranch, string releaseBranch)> _branchConfigurations = new();
     private readonly GitDiffService _gitDiffService = new();
     private List<DirectoryScanResult> _selectedRepositories = new();
     private ChangeMetadata? _changeMetadata = null;
@@ -3334,17 +3334,17 @@ public partial class MainWindowViewModel : ViewModelBase
                 await Task.Delay(100);
 
                 // Get commit hashes for metadata
-                var baseCommit = _gitDiffService.GetCommitHash(repoPath, branches.baseBranch) ?? string.Empty;
-                var targetCommit = _gitDiffService.GetCommitHash(repoPath, branches.targetBranch) ?? string.Empty;
+                var deployedCommit = _gitDiffService.GetCommitHash(repoPath, branches.deployedBranch) ?? string.Empty;
+                var releaseCommit = _gitDiffService.GetCommitHash(repoPath, branches.releaseBranch) ?? string.Empty;
 
                 // Create repository change info
                 var repoChangeInfo = new RepositoryChangeInfo
                 {
                     Path = repoPath,
-                    BaseBranch = branches.baseBranch,
-                    TargetBranch = branches.targetBranch,
-                    BaseCommit = baseCommit,
-                    TargetCommit = targetCommit
+                    DeployedBranch = branches.deployedBranch,
+                    ReleaseBranch = branches.releaseBranch,
+                    DeployedCommit = deployedCommit,
+                    ReleaseCommit = releaseCommit
                 };
 
                 // Get all translation keys from this repository
@@ -3371,7 +3371,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     var relativeFilePath = Path.GetRelativePath(repoPath, fullFilePath);
 
                     // Run git diff on this file
-                    var diffContent = _gitDiffService.GetFileDiff(repoPath, branches.baseBranch, branches.targetBranch, relativeFilePath);
+                    var diffContent = _gitDiffService.GetFileDiff(repoPath, branches.deployedBranch, branches.releaseBranch, relativeFilePath);
 
                     if (string.IsNullOrEmpty(diffContent))
                         continue;

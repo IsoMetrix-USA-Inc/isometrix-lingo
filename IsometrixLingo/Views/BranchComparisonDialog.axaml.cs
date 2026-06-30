@@ -28,7 +28,7 @@ public partial class BranchComparisonDialog : Window
         Close(null);
     }
 
-    private void BaseBranch_LostFocus(object? sender, RoutedEventArgs e)
+    private void DeployedBranch_LostFocus(object? sender, RoutedEventArgs e)
     {
         if (DataContext is BranchComparisonViewModel viewModel && sender is TextBox textBox)
         {
@@ -39,7 +39,7 @@ public partial class BranchComparisonDialog : Window
         }
     }
 
-    private void TargetBranch_LostFocus(object? sender, RoutedEventArgs e)
+    private void ReleaseBranch_LostFocus(object? sender, RoutedEventArgs e)
     {
         if (DataContext is BranchComparisonViewModel viewModel && sender is TextBox textBox)
         {

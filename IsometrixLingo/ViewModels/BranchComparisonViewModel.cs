@@ -22,10 +22,10 @@ public partial class BranchComparisonViewModel : ViewModelBase
     private string _currentRepositoryPath = string.Empty;
 
     [ObservableProperty]
-    private string _baseBranch = "develop";
+    private string _deployedBranch = string.Empty;
 
     [ObservableProperty]
-    private string _targetBranch = string.Empty;
+    private string _releaseBranch = string.Empty;
 
     [ObservableProperty]
     private string _errorMessage = string.Empty;
@@ -49,9 +49,9 @@ public partial class BranchComparisonViewModel : ViewModelBase
     private bool _canConfirm;
 
     // Store validated branch configurations
-    private readonly Dictionary<string, (string baseBranch, string targetBranch)> _branchConfigurations = new();
+    private readonly Dictionary<string, (string deployedBranch, string releaseBranch)> _branchConfigurations = new();
 
-    public Dictionary<string, (string baseBranch, string targetBranch)> BranchConfigurations => _branchConfigurations;
+    public Dictionary<string, (string deployedBranch, string releaseBranch)> BranchConfigurations => _branchConfigurations;
 
     public BranchComparisonViewModel()
     {
@@ -103,14 +103,14 @@ public partial class BranchComparisonViewModel : ViewModelBase
         // Load previously configured branches if they exist
         if (_branchConfigurations.TryGetValue(CurrentRepositoryPath, out var config))
         {
-            BaseBranch = config.baseBranch;
-            TargetBranch = config.targetBranch;
+            DeployedBranch = config.deployedBranch;
+            ReleaseBranch = config.releaseBranch;
         }
         else
         {
-            // Detect whether repository uses "main" or "master"
-            BaseBranch = DetectDefaultBranch(CurrentRepositoryPath);
-            TargetBranch = string.Empty;
+            // Detect whether repository uses "origin/main" or "origin/master"
+            DeployedBranch = DetectDefaultBranch(CurrentRepositoryPath);
+            ReleaseBranch = string.Empty;
         }
 
         ClearError();
@@ -174,29 +174,29 @@ public partial class BranchComparisonViewModel : ViewModelBase
     {
         ClearError();
 
-        if (string.IsNullOrWhiteSpace(BaseBranch))
+        if (string.IsNullOrWhiteSpace(DeployedBranch))
         {
-            ShowError("Base branch name cannot be empty.");
+            ShowError("Deployed branch name cannot be empty.");
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(TargetBranch))
+        if (string.IsNullOrWhiteSpace(ReleaseBranch))
         {
-            ShowError("Target branch name cannot be empty.");
+            ShowError("Release branch name cannot be empty.");
             return false;
         }
 
-        // Validate base branch exists
-        if (!_gitDiffService.ValidateBranchExists(CurrentRepositoryPath, BaseBranch))
+        // Validate deployed branch exists
+        if (!_gitDiffService.ValidateBranchExists(CurrentRepositoryPath, DeployedBranch))
         {
-            ShowError($"Branch '{BaseBranch}' not found in repository '{CurrentRepositoryName}'. Please verify the branch name.");
+            ShowError($"Branch '{DeployedBranch}' not found in repository '{CurrentRepositoryName}'. Please verify the branch name.");
             return false;
         }
 
-        // Validate target branch exists
-        if (!_gitDiffService.ValidateBranchExists(CurrentRepositoryPath, TargetBranch))
+        // Validate release branch exists
+        if (!_gitDiffService.ValidateBranchExists(CurrentRepositoryPath, ReleaseBranch))
         {
-            ShowError($"Branch '{TargetBranch}' not found in repository '{CurrentRepositoryName}'. Please verify the branch name.");
+            ShowError($"Branch '{ReleaseBranch}' not found in repository '{CurrentRepositoryName}'. Please verify the branch name.");
             return false;
         }
 
@@ -205,7 +205,7 @@ public partial class BranchComparisonViewModel : ViewModelBase
 
     private void SaveCurrentConfiguration()
     {
-        _branchConfigurations[CurrentRepositoryPath] = (BaseBranch, TargetBranch);
+        _branchConfigurations[CurrentRepositoryPath] = (DeployedBranch, ReleaseBranch);
     }
 
     private void UpdateNavigationState()
@@ -233,12 +233,12 @@ public partial class BranchComparisonViewModel : ViewModelBase
         HasError = false;
     }
 
-    partial void OnBaseBranchChanged(string value)
+    partial void OnDeployedBranchChanged(string value)
     {
         ClearError();
     }
 
-    partial void OnTargetBranchChanged(string value)
+    partial void OnReleaseBranchChanged(string value)
     {
         ClearError();
     }

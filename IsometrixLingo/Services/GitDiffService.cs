@@ -86,32 +86,32 @@ public class GitDiffService
     /// Gets the list of changed files between two branches.
     /// </summary>
     /// <param name="repoPath">Absolute path to the git repository</param>
-    /// <param name="baseBranch">Base branch name (e.g., "develop")</param>
-    /// <param name="targetBranch">Target branch name (e.g., "release/v5.0.0")</param>
+    /// <param name="deployedBranch">Deployed branch name (e.g., "origin/main")</param>
+    /// <param name="releaseBranch">Release branch name (e.g., "origin/release/v5.0.0")</param>
     /// <returns>List of changed file paths, or empty list if error occurs</returns>
-    public List<string> GetChangedFiles(string repoPath, string baseBranch, string targetBranch)
+    public List<string> GetChangedFiles(string repoPath, string deployedBranch, string releaseBranch)
     {
         var changedFiles = new List<string>();
-
+        
         try
         {
             using var repo = new Repository(repoPath);
-
-            var baseCommit = repo.Branches[baseBranch]?.Tip;
-            var targetCommit = repo.Branches[targetBranch]?.Tip;
-
-            if (baseCommit == null || targetCommit == null)
+            
+            var deployedCommit = repo.Branches[deployedBranch]?.Tip;
+            var releaseCommit = repo.Branches[releaseBranch]?.Tip;
+            
+            if (deployedCommit == null || releaseCommit == null)
             {
                 return changedFiles;
             }
 
-            var changes = repo.Diff.Compare<TreeChanges>(baseCommit.Tree, targetCommit.Tree);
-
+            var changes = repo.Diff.Compare<TreeChanges>(deployedCommit.Tree, releaseCommit.Tree);
+            
             foreach (var change in changes)
             {
                 changedFiles.Add(change.Path);
             }
-
+            
             return changedFiles;
         }
         catch (Exception)
@@ -124,25 +124,25 @@ public class GitDiffService
     /// Gets the diff content for a specific file between two branches.
     /// </summary>
     /// <param name="repoPath">Absolute path to the git repository</param>
-    /// <param name="baseBranch">Base branch name</param>
-    /// <param name="targetBranch">Target branch name</param>
+    /// <param name="deployedBranch">Deployed branch name (e.g., \"origin/main\")</param>
+    /// <param name="releaseBranch">Release branch name (e.g., \"origin/release/v5.0.0\")</param>
     /// <param name="filePath">Relative path to the file within the repository</param>
     /// <returns>Patch diff content, or null if error occurs</returns>
-    public string? GetFileDiff(string repoPath, string baseBranch, string targetBranch, string filePath)
+    public string? GetFileDiff(string repoPath, string deployedBranch, string releaseBranch, string filePath)
     {
         try
         {
             using var repo = new Repository(repoPath);
 
-            var baseCommit = repo.Branches[baseBranch]?.Tip;
-            var targetCommit = repo.Branches[targetBranch]?.Tip;
+            var deployedCommit = repo.Branches[deployedBranch]?.Tip;
+            var releaseCommit = repo.Branches[releaseBranch]?.Tip;
 
-            if (baseCommit == null || targetCommit == null)
+            if (deployedCommit == null || releaseCommit == null)
             {
                 return null;
             }
 
-            var patch = repo.Diff.Compare<Patch>(baseCommit.Tree, targetCommit.Tree, new[] { filePath });
+            var patch = repo.Diff.Compare<Patch>(deployedCommit.Tree, releaseCommit.Tree, new[] { filePath });
 
             return patch?.Content;
         }
