@@ -4,49 +4,54 @@
         x:Class="IsometrixLingo.Views.ProgressDialog"
         x:DataType="vm:ProgressDialogViewModel"
         Title="{Binding Title}"
-        Width="460"
-        Height="200"
+        Width="380"
+        Height="180"
         WindowStartupLocation="CenterOwner"
         CanResize="False"
         ShowInTaskbar="False">
 
+    <Window.Styles>
+        <Style Selector="Ellipse.spinner">
+            <Style.Animations>
+                <Animation Duration="0:0:1" IterationCount="INFINITE" Easing="LinearEasing">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="RotateTransform.Angle" Value="0"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="RotateTransform.Angle" Value="360"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+    </Window.Styles>
+
     <Border Background="{DynamicResource ThemeBackgroundBrush}"
             Padding="28">
-        <Grid RowDefinitions="Auto,*,Auto">
+        <StackPanel HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="20">
 
-            <!-- Title -->
-            <TextBlock Grid.Row="0"
-                       Text="{Binding Title}"
-                       FontSize="18"
-                       FontWeight="Bold"
-                       HorizontalAlignment="Center"
-                       Margin="0,0,0,18"/>
+            <!-- Spinner -->
+            <Ellipse Classes="spinner"
+                     Width="44"
+                     Height="44"
+                     Stroke="#3498DB"
+                     StrokeThickness="4"
+                     StrokeDashArray="3.0,1.2"
+                     StrokeLineCap="Round"
+                     HorizontalAlignment="Center">
+                <Ellipse.RenderTransform>
+                    <RotateTransform/>
+                </Ellipse.RenderTransform>
+            </Ellipse>
 
-            <!-- Progress bar with centered percentage -->
-            <Grid Grid.Row="1" VerticalAlignment="Center">
-                <ProgressBar Minimum="0"
-                             Maximum="100"
-                             Value="{Binding Percentage}"
-                             Height="28"
-                             CornerRadius="6"/>
-                <TextBlock Text="{Binding PercentageText}"
-                           FontSize="14"
-                           FontWeight="Bold"
-                           Foreground="White"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"/>
-            </Grid>
-
-            <!-- Status text -->
-            <TextBlock Grid.Row="2"
-                       Text="{Binding StatusText}"
-                       FontSize="12"
-                       Foreground="#666"
-                       TextWrapping="Wrap"
-                       MaxLines="2"
+            <!-- Message -->
+            <TextBlock Text="{Binding StatusText}"
+                       FontSize="15"
+                       FontWeight="SemiBold"
                        HorizontalAlignment="Center"
                        TextAlignment="Center"
-                       Margin="0,18,0,0"/>
-        </Grid>
+                       TextWrapping="Wrap"/>
+        </StackPanel>
     </Border>
 </Window>

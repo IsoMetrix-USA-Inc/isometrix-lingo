@@ -3354,7 +3354,8 @@ public partial class MainWindowViewModel : ViewModelBase
 
                 var progressViewModel = new ProgressDialogViewModel
                 {
-                    Title = "Detecting Git Changes"
+                    Title = "Detecting Git Changes",
+                    StatusText = "Detecting git changes..."
                 };
                 var progressDialog = new ProgressDialog
                 {
@@ -3421,24 +3422,17 @@ public partial class MainWindowViewModel : ViewModelBase
             };
 
             // ---- Phase 1: Gather work (fetch + discover which files actually changed) ----
-            // We must know the exact number of changed files up front so the progress bar
-            // can show a precise percentage as each file is processed.
-            progress.Percentage = 0;
-            progress.StatusText = "Preparing change detection...";
+            progress.StatusText = "Detecting git changes...";
 
             var workItems = new List<(string RepoPath, (string deployedBranch, string releaseBranch) Branches, SourceFile Source, List<TranslationKey> Keys, List<string> MatchingChangedFiles, RepositoryChangeInfo RepoChangeInfo)>();
             var repoChangeInfos = new List<RepositoryChangeInfo>();
-            var totalFileDiffs = 0;
 
             foreach (var (repoPath, branches) in _branchConfigurations)
             {
                 var repoName = Path.GetFileName(repoPath);
 
                 // Fetch latest changes from remote
-                progress.StatusText = $"Fetching latest changes for '{repoName}'...";
                 await _gitDiffService.FetchRepositoryAsync(repoPath);
-
-                progress.StatusText = $"Analyzing repository '{repoName}'...";
 
                 // Get commit hashes for metadata (off the UI thread)
                 var deployedCommit = await Task.Run(() => _gitDiffService.GetCommitHash(repoPath, branches.deployedBranch) ?? string.Empty);
@@ -3521,24 +3515,10 @@ public partial class MainWindowViewModel : ViewModelBase
                         continue;
 
                     workItems.Add((repoPath, branches, source, fileGroup.ToList(), matchingChangedFiles, repoChangeInfo));
-                    totalFileDiffs += matchingChangedFiles.Count;
                 }
             }
 
-            Log($"Total file diffs to process: {totalFileDiffs}");
-
-            // ---- Phase 2: Process each changed file, advancing the bar by 1 file at a time ----
-            // Percentage is simply: files completed / total files.
-            progress.Percentage = 0;
-
-            if (totalFileDiffs == 0)
-            {
-                progress.Percentage = 100;
-                progress.StatusText = "No changed files detected.";
-            }
-
-            var completedFileDiffs = 0;
-
+            // ---- Phase 2: Process each changed file ----
             foreach (var item in workItems)
             {
                 var source = item.Source;
@@ -3548,9 +3528,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
                 foreach (var changedFilePath in item.MatchingChangedFiles)
                 {
-                    progress.StatusText = $"Comparing {Path.GetFileName(changedFilePath)}...";
-
-                    // Run git diff + parse off the UI thread so the progress bar stays responsive
+                    // Run git diff + parse off the UI thread so the spinner keeps animating
                     var changes = await Task.Run(() =>
                     {
                         var diffContent = _gitDiffService.GetFileDiff(item.RepoPath, item.Branches.deployedBranch, item.Branches.releaseBranch, changedFilePath);
@@ -3567,9 +3545,6 @@ public partial class MainWindowViewModel : ViewModelBase
                     {
                         aggregatedChanges[kvp.Key] = kvp.Value;
                     }
-
-                    completedFileDiffs++;
-                    progress.Percentage = (double)completedFileDiffs / totalFileDiffs * 100;
                 }
 
                 // If no changes found for this source, skip
@@ -3630,11 +3605,6 @@ public partial class MainWindowViewModel : ViewModelBase
                     _changeMetadata.Repositories.Add(repoChangeInfo);
                 }
             }
-
-            progress.Percentage = 100;
-            progress.StatusText = totalChanges > 0
-                ? $"Found {totalChanges} modified or added key{(totalChanges == 1 ? "" : "s")}."
-                : "No changes detected.";
 
             StatusMessage = totalChanges > 0
                 ? $"Change detection complete. Found {totalChanges} modified or added translation key{(totalChanges == 1 ? "" : "s")}."

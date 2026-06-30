@@ -8,11 +8,5 @@ public partial class ProgressDialogViewModel : ViewModelBase
     private string _title = "Working...";
 
     [ObservableProperty]
-    private string _statusText = "Preparing...";
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(PercentageText))]
-    private double _percentage; // 0 - 100
-
-    public string PercentageText => $"{Percentage:0}%";
+    private string _statusText = "Please wait...";
 }
