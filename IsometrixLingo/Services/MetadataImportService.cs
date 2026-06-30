@@ -58,21 +58,30 @@ public class MetadataImportService
         {
             foreach (var file in repo.Files)
             {
-                // Find keys matching this file
+                // file.Path includes the repo directory prefix (matching the imported
+                // DirectoryPath), e.g.
+                // "vcloud-web-api/IsoMetrix.Infrastructure/Translations/Resources/Emails/EmailTranslations.resx"
+                var fileDir = (Path.GetDirectoryName(file.Path) ?? string.Empty).Replace('\\', '/');
+                var fileName = Path.GetFileName(file.Path);
+
+                // Find keys matching this file by comparing the directory (both include the
+                // repo prefix) and the base file name
                 var fileKeys = keys.Where(k =>
                 {
                     if (k.Source?.DirectoryPath == null)
                         return false;
 
-                    // Construct expected file path
-                    var fileName = k.Source.Type == FileType.Json
-                        ? $"{k.Source.Name}.en.json"
-                        : $"{k.Source.Name}.resx";
+                    var normalizedDir = k.Source.DirectoryPath.Replace('\\', '/');
 
-                    var fullFilePath = Path.Combine(k.Source.DirectoryPath, fileName);
-                    var relativePath = Path.GetRelativePath(rootDirectoryPath, fullFilePath);
+                    // Derive the base name from the changed file name (strip language + extension)
+                    var baseName = k.Source.Type == FileType.Json
+                        ? fileName.Split('.')[0]                     // Forms.es.json -> Forms
+                        : fileName.Split('_')[0].Replace(".resx", ""); // Forms_es.resx -> Forms
 
-                    return relativePath == file.Path;
+                    var dirMatch = normalizedDir.Equals(fileDir, StringComparison.OrdinalIgnoreCase);
+                    var nameMatch = baseName.Equals(k.Source.Name, StringComparison.OrdinalIgnoreCase);
+
+                    return dirMatch && nameMatch;
                 }).ToList();
 
                 // Apply change types

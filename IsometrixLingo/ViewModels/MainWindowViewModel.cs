@@ -1336,6 +1336,9 @@ public partial class MainWindowViewModel : ViewModelBase
                     _changeMetadata = metadata;
                     MetadataLoadedFromImport = true;
 
+                    // Refresh the grid so newly-applied ChangeType values are reflected
+                    _translationStore.RefreshUI();
+
                     var totalChanges = allKeys.Count(k => k.ChangeType != ChangeType.None);
                     StatusMessage = $"Loaded change metadata: {totalChanges} modified/added key{(totalChanges == 1 ? "" : "s")} detected.";
                     await Task.Delay(1500); // Show metadata message
@@ -3537,10 +3540,12 @@ public partial class MainWindowViewModel : ViewModelBase
                     if (aggregatedChanges.Count == 0)
                         continue;
 
-                    // Create file change info for metadata (using first matching file path for metadata)
+                    // Create file change info for metadata.
+                    // Store the path WITH the repo directory prefix (same as source.DirectoryPath)
+                    // so it consistently matches the imported DirectoryPath on the PO side.
                     var fileChangeInfo = new FileChangeInfo
                     {
-                        Path = matchingChangedFiles[0]
+                        Path = $"{source.DirectoryPath}/{Path.GetFileName(matchingChangedFiles[0])}"
                     };
 
                     // Apply ChangeType to translation keys and collect metadata
