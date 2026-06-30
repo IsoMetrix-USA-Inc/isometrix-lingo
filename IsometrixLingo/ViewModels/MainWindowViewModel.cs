@@ -3394,9 +3394,38 @@ public partial class MainWindowViewModel : ViewModelBase
                 };
 
                 // Get all translation keys from this repository
-                var keysInRepo = _translationStore.GetAllKeys()
-                    .Where(k => k.Source?.DirectoryPath != null &&
-                                Path.GetFullPath(k.Source.DirectoryPath).StartsWith(Path.GetFullPath(repoPath)))
+                var allKeys = _translationStore.GetAllKeys();
+                Log($"Total keys in store: {allKeys.Count}");
+                
+                // Log first few key paths for debugging
+                foreach (var key in allKeys.Take(3))
+                {
+                    Log($"  Key '{key.Key}' has DirectoryPath: '{key.Source?.DirectoryPath ?? "NULL"}'");
+                }
+                
+                var repoFullPath = Path.GetFullPath(repoPath);
+                Log($"Looking for keys with DirectoryPath starting with: '{repoFullPath}'");
+                Log($"_rootDirectoryPath = '{_rootDirectoryPath ?? "NULL"}'");
+                
+                // DirectoryPath is stored as relative path from _rootDirectoryPath
+                // We need to resolve it to absolute path before comparing with repoPath
+                var keysInRepo = allKeys
+                    .Where(k =>
+                    {
+                        if (k.Source?.DirectoryPath == null || _rootDirectoryPath == null)
+                            return false;
+                        
+                        // Resolve relative DirectoryPath to absolute
+                        var absoluteDirectoryPath = Path.GetFullPath(Path.Combine(_rootDirectoryPath, k.Source.DirectoryPath));
+                        var match = absoluteDirectoryPath.StartsWith(repoFullPath, StringComparison.OrdinalIgnoreCase);
+                        
+                        if (match)
+                        {
+                            Log($"  MATCH: '{k.Source.DirectoryPath}' → '{absoluteDirectoryPath}' starts with '{repoFullPath}'");
+                        }
+                        
+                        return match;
+                    })
                     .ToList();
 
                 Log($"Found {keysInRepo.Count} keys in repo '{repoName}'");
@@ -3429,9 +3458,16 @@ public partial class MainWindowViewModel : ViewModelBase
                     StatusMessage = $"Checking source: {source.Name}, dir: {source.DirectoryPath}";
                     await Task.Delay(500);
 
-                    // Find all changed files matching this source (any language variant)
-                    var sourceBasePath = Path.Combine(source.DirectoryPath, source.Name);
-                    var relativeBasePath = Path.GetRelativePath(repoPath, sourceBasePath);
+                    // DirectoryPath is stored as "repo-name/IsoMetrix.../..." but git returns "IsoMetrix.../..."
+                    // Strip the repo name prefix from DirectoryPath before comparing
+                    var sourceDirectoryWithoutRepo = source.DirectoryPath;
+                    var firstSlash = source.DirectoryPath.IndexOf('/');
+                    if (firstSlash > 0 && firstSlash < source.DirectoryPath.Length - 1)
+                    {
+                        sourceDirectoryWithoutRepo = source.DirectoryPath.Substring(firstSlash + 1);
+                    }
+                    
+                    Log($"  Source directory (stripped): '{sourceDirectoryWithoutRepo}'");
                     
                     // Match changed files that start with our base path
                     // e.g., "Forms" matches "Forms.en.json", "Forms.es.json", "Forms.resx", "Forms_es.resx", etc.
@@ -3445,7 +3481,7 @@ public partial class MainWindowViewModel : ViewModelBase
                                 : fileName.Split('_')[0].Replace(".resx", ""); // For RESX: Forms_es.resx → Forms
                             
                             var nameMatch = baseName.Equals(source.Name, StringComparison.OrdinalIgnoreCase);
-                            var dirMatch = fileDir.Equals(source.DirectoryPath, StringComparison.OrdinalIgnoreCase);
+                            var dirMatch = fileDir.Equals(sourceDirectoryWithoutRepo, StringComparison.OrdinalIgnoreCase);
                             
                             Log($"  Comparing file '{path}': fileName='{fileName}', baseName='{baseName}', fileDir='{fileDir}', nameMatch={nameMatch}, dirMatch={dirMatch}");
                             
@@ -3556,6 +3592,11 @@ public partial class MainWindowViewModel : ViewModelBase
             StatusMessage = totalChanges > 0
                 ? $"Change detection complete. Found {totalChanges} modified or added translation key{(totalChanges == 1 ? "" : "s")}."
                 : "Change detection complete. No changes detected.";
+
+            // CRITICAL: Refresh the filtered view to show updated ChangeType values
+            // This ensures that if the "Only Modified/Added" filter is active,
+            // the grid immediately shows the newly detected changes
+            _translationStore.RefreshUI();
         }
         catch (Exception ex)
         {
