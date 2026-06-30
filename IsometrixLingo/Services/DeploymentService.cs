@@ -13,6 +13,12 @@ namespace IsometrixLingo.Services;
 public class DeploymentService
 {
     /// <summary>
+    /// Name of the internal change-tracking metadata file. This is an internal artifact
+    /// used for the import round-trip and must never be deployed to the target location.
+    /// </summary>
+    private const string MetadataFileName = "metadata.json";
+
+    /// <summary>
     /// Suggests a deployment root directory by searching parent/siblings for a directory matching the ZIP prefix.
     /// </summary>
     /// <param name="exportDirectory">The directory where the ZIP was exported</param>
@@ -137,6 +143,12 @@ public class DeploymentService
                     continue;
                 }
 
+                // Never deploy the internal change-tracking metadata file
+                if (string.Equals(entry.Name, MetadataFileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 // Map to deployment target path
                 var targetPath = Path.Combine(deploymentRoot, entry.FullName);
 
@@ -207,6 +219,12 @@ public class DeploymentService
                     continue;
                 }
 
+                // Never deploy the internal change-tracking metadata file
+                if (string.Equals(entry.Name, MetadataFileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 var targetPath = Path.Combine(deploymentRoot, entry.FullName);
 
                 previewItems.Add(new DeploymentPreviewItem
@@ -257,6 +275,12 @@ public class DeploymentService
             {
                 // Skip directories
                 if (string.IsNullOrEmpty(entry.Name))
+                {
+                    continue;
+                }
+
+                // Never deploy the internal change-tracking metadata file
+                if (string.Equals(entry.Name, MetadataFileName, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -403,7 +427,13 @@ public class DeploymentService
             {
                 // Get relative path from source directory
                 var relativePath = Path.GetRelativePath(sourceDirectory, sourceFile);
-                
+
+                // Never deploy the internal change-tracking metadata file
+                if (string.Equals(Path.GetFileName(sourceFile), MetadataFileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 // Map to deployment target path
                 var targetPath = Path.Combine(deploymentRoot, relativePath);
 
@@ -472,7 +502,13 @@ public class DeploymentService
             {
                 // Get relative path from source directory
                 var relativePath = Path.GetRelativePath(sourceDirectory, sourceFile);
-                
+
+                // Never deploy the internal change-tracking metadata file
+                if (string.Equals(Path.GetFileName(sourceFile), MetadataFileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 // Map to deployment target path (store as relative for UI display)
                 previewItems.Add(new DeploymentPreviewItem
                 {
@@ -523,7 +559,13 @@ public class DeploymentService
             {
                 // Get relative path from source directory
                 var relativePath = Path.GetRelativePath(sourceDirectory, sourceFile);
-                
+
+                // Never deploy the internal change-tracking metadata file
+                if (string.Equals(Path.GetFileName(sourceFile), MetadataFileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 // Map to deployment target path
                 var targetPath = Path.Combine(deploymentRoot, relativePath);
 
