@@ -48,7 +48,8 @@ public class ProgressService
                 OriginalValues = new Dictionary<string, string>(tk.OriginalValues),
                 ModifiedLanguages = tk.ModifiedLanguages.ToList(),
                 ShowOriginalForThisRow = tk.ShowOriginalForThisRow,
-                ChangeType = tk.ChangeType
+                ChangeType = tk.ChangeType,
+                IsApproved = tk.IsApproved
             }).ToList(),
             ImportedFileNames = state.ImportedFileNames,
             ResxTemplates = state.ResxTemplates,
@@ -135,7 +136,8 @@ public class ProgressService
                         OriginalValues = new Dictionary<string, string>(stk.OriginalValues),
                         ModifiedLanguages = new HashSet<string>(stk.ModifiedLanguages),
                         ShowOriginalForThisRow = stk.ShowOriginalForThisRow,
-                        ChangeType = stk.ChangeType
+                        ChangeType = stk.ChangeType,
+                        IsApproved = stk.IsApproved
                     };
                     key.UpdateMissingTranslationsStatus();
                     return key;

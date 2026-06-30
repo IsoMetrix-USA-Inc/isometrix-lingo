@@ -135,6 +135,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool _showOnlyModifiedOrAdded;
 
     [ObservableProperty]
+    private bool _includeReviewedKeys;
+
+    [ObservableProperty]
     private bool _showFilters = true;
 
     [ObservableProperty]
@@ -1754,6 +1757,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ShowOnlyMissingTranslations = false;
         ShowOnlyWithSuggestions = false;
         ShowOnlyModifiedOrAdded = false;
+        IncludeReviewedKeys = false;
         _translationStore.FilterBySourceFiles(null!);
         _translationStore.FilterBySearchTerm(string.Empty);
         UpdateStatusMessage();
@@ -1786,6 +1790,26 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnShowOnlyModifiedOrAddedChanged(bool value)
     {
         _translationStore.FilterByChangeType(value);
+        // When the modified/added filter is turned off, reset the secondary sub-filter
+        if (!value)
+        {
+            IncludeReviewedKeys = false;
+        }
+        UpdateStatusMessage();
+    }
+
+    partial void OnIncludeReviewedKeysChanged(bool value)
+    {
+        _translationStore.FilterIncludeReviewed(value);
+        UpdateStatusMessage();
+    }
+
+    /// <summary>
+    /// Called when a key's approval state is toggled so the grid re-applies the active filters.
+    /// </summary>
+    public void OnKeyApprovalChanged()
+    {
+        _translationStore.RefreshUI();
         UpdateStatusMessage();
     }
 

@@ -38,6 +38,12 @@ public partial class TranslationKey : ObservableObject
     private ChangeType _changeType = ChangeType.None;
 
     /// <summary>
+    /// Indicates the user has reviewed and signed off this modified/added key.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isApproved;
+
+    /// <summary>
     /// Check if a specific language value has been modified
     /// </summary>
     public bool IsLanguageModified(string language)

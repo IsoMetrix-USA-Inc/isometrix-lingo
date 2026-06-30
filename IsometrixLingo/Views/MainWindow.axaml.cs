@@ -528,6 +528,59 @@ public partial class MainWindow : Window
 
                 panel.Children.Add(toggleButton);
                 panel.Children.Add(editButton);
+
+                // Approve/review button (only for modified or added keys)
+                if (data is TranslationKey changeKey)
+                {
+                    var approveButton = new Button
+                    {
+                        FontSize = 18,
+                        Padding = new Avalonia.Thickness(8, 4),
+                        HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                        VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center
+                    };
+
+                    // Only show this button for keys that are modified/added (ChangeType != None)
+                    var approveVisibilityBinding = new Binding("ChangeType")
+                    {
+                        Source = changeKey,
+                        Converter = new ChangeTypeToBoolConverter()
+                    };
+                    approveButton.Bind(Button.IsVisibleProperty, approveVisibilityBinding);
+
+                    // Icon reflects approval state: filled green check when approved, outline when not
+                    var approveContentBinding = new Binding("IsApproved")
+                    {
+                        Source = changeKey,
+                        Converter = new ApproveButtonContentConverter()
+                    };
+                    approveButton.Bind(Button.ContentProperty, approveContentBinding);
+
+                    // Foreground reflects approval state (green when approved)
+                    var approveForegroundBinding = new Binding("IsApproved")
+                    {
+                        Source = changeKey,
+                        Converter = new ApproveButtonForegroundConverter()
+                    };
+                    approveButton.Bind(Button.ForegroundProperty, approveForegroundBinding);
+
+                    // Tooltip reflects approval state
+                    var approveTooltipBinding = new Binding("IsApproved")
+                    {
+                        Source = changeKey,
+                        Converter = new ApproveButtonTooltipConverter()
+                    };
+                    approveButton.Bind(ToolTip.TipProperty, approveTooltipBinding);
+
+                    approveButton.Click += (s, e) =>
+                    {
+                        changeKey.IsApproved = !changeKey.IsApproved;
+                        viewModel.OnKeyApprovalChanged();
+                    };
+
+                    panel.Children.Add(approveButton);
+                }
+
                 return panel;
             })
         };

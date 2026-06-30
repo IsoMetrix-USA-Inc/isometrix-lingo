@@ -23,6 +23,7 @@ public class RowBackgroundConverter : IMultiValueConverter
             values[1] is ChangeType changeType)
         {
             var isDarkMode = Application.Current?.ActualThemeVariant == ThemeVariant.Dark;
+            var isApproved = values.Count >= 3 && values[2] is bool approved && approved;
 
             // Priority 1: Missing translations (most important)
             if (hasMissingTranslations)
@@ -30,7 +31,15 @@ public class RowBackgroundConverter : IMultiValueConverter
                 return new SolidColorBrush(Color.FromArgb(70, 255, 80, 80)); // Red background (same for both themes)
             }
 
-            // Priority 2: Change type indicators (theme-aware)
+            // Priority 2: Approved/reviewed changes (green) - takes precedence over change type
+            if (isApproved && changeType != ChangeType.None)
+            {
+                return isDarkMode
+                    ? new SolidColorBrush(Color.FromArgb(100, 76, 175, 80))   // Dark mode: Brighter green with transparency
+                    : new SolidColorBrush(Color.FromRgb(200, 230, 201));      // Light mode: Soft green
+            }
+
+            // Priority 3: Change type indicators (theme-aware)
             return changeType switch
             {
                 ChangeType.Modified => isDarkMode

@@ -53,6 +53,7 @@ public class SerializableTranslationKey
     public List<string> ModifiedLanguages { get; set; } = new();
     public bool ShowOriginalForThisRow { get; set; }
     public ChangeType ChangeType { get; set; } = ChangeType.None;
+    public bool IsApproved { get; set; }
 }
 
 /// <summary>

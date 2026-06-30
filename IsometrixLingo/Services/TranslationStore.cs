@@ -20,6 +20,7 @@ public class TranslationStore
     private bool _showOnlyMissingTranslations = false;
     private bool _showOnlyWithSuggestions = false;
     private bool _showOnlyModifiedOrAdded = false;
+    private bool _includeReviewedKeys = false;
     private bool _hasUnsavedChanges = false;
 
     public ObservableCollection<TranslationKey> FilteredKeys => _filteredKeys;
@@ -153,6 +154,12 @@ public class TranslationStore
         ApplyFilters();
     }
 
+    public void FilterIncludeReviewed(bool includeReviewedKeys)
+    {
+        _includeReviewedKeys = includeReviewedKeys;
+        ApplyFilters();
+    }
+
     private void ApplyFilters()
     {
         _filteredKeys.Clear();
@@ -198,7 +205,9 @@ public class TranslationStore
         // Apply change type filter if enabled
         if (_showOnlyModifiedOrAdded)
         {
-            keysToShow = keysToShow.Where(k => k.ChangeType != ChangeType.None);
+            // Show only modified/added keys, and by default hide ones already reviewed/approved
+            keysToShow = keysToShow.Where(k => k.ChangeType != ChangeType.None
+                && (_includeReviewedKeys || !k.IsApproved));
         }
 
         foreach (var key in keysToShow)

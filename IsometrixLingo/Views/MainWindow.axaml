@@ -831,6 +831,11 @@
                                         <CheckBox Content="Only Modified/Added Keys"
                                                   IsChecked="{Binding ShowOnlyModifiedOrAdded}"
                                                   ToolTip.Tip="Show only keys that were modified or added since last release"/>
+                                        <CheckBox Content="Include reviewed/approved keys"
+                                                  IsChecked="{Binding IncludeReviewedKeys}"
+                                                  IsVisible="{Binding ShowOnlyModifiedOrAdded}"
+                                                  Margin="20,0,0,0"
+                                                  ToolTip.Tip="Also show modified/added keys that have already been reviewed and approved"/>
                                     </StackPanel>
                                 </Flyout>
                             </Button.Flyout>
@@ -958,6 +963,7 @@
                                             <MultiBinding Converter="{StaticResource RowBackgroundConverter}">
                                                 <Binding Path="HasMissingTranslations"/>
                                                 <Binding Path="ChangeType"/>
+                                                <Binding Path="IsApproved"/>
                                             </MultiBinding>
                                         </Setter.Value>
                                     </Setter>
