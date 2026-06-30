@@ -137,17 +137,36 @@ public class GitDiffService
             var deployedCommit = repo.Branches[deployedBranch]?.Tip;
             var releaseCommit = repo.Branches[releaseBranch]?.Tip;
 
-            if (deployedCommit == null || releaseCommit == null)
+            if (deployedCommit == null)
             {
+                Console.WriteLine($"[GitDiff] Deployed branch '{deployedBranch}' not found!");
+                return null;
+            }
+            
+            if (releaseCommit == null)
+            {
+                Console.WriteLine($"[GitDiff] Release branch '{releaseBranch}' not found!");
                 return null;
             }
 
+            Console.WriteLine($"[GitDiff] Comparing {deployedBranch} ({deployedCommit.Sha[..7]}) → {releaseBranch} ({releaseCommit.Sha[..7]}) for file: {filePath}");
+
             var patch = repo.Diff.Compare<Patch>(deployedCommit.Tree, releaseCommit.Tree, new[] { filePath });
 
-            return patch?.Content;
+            if (patch == null || string.IsNullOrWhiteSpace(patch.Content))
+            {
+                Console.WriteLine($"[GitDiff] NO CHANGES in {filePath}");
+                return null;
+            }
+
+            Console.WriteLine($"[GitDiff] Found {patch.Content.Length} chars of diff for {filePath}");
+            Console.WriteLine($"[GitDiff] Diff preview: {patch.Content.Substring(0, Math.Min(200, patch.Content.Length))}");
+
+            return patch.Content;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Console.WriteLine($"[GitDiff] ERROR: {ex.Message}");
             return null;
         }
     }
@@ -163,8 +182,11 @@ public class GitDiffService
 
         if (string.IsNullOrWhiteSpace(diffContent))
         {
+            Console.WriteLine("[ParseJsonDiff] Empty diff content");
             return changes;
         }
+
+        Console.WriteLine($"[ParseJsonDiff] Parsing {diffContent.Length} chars of diff");
 
         // Parse git diff format:
         // Lines starting with - are removed
@@ -184,6 +206,7 @@ public class GitDiffService
                 var key = ExtractKeyFromJsonLine(trimmed.Substring(1).Trim());
                 if (!string.IsNullOrEmpty(key))
                 {
+                    Console.WriteLine($"[ParseJsonDiff] Found ADDED line: {trimmed.Substring(0, Math.Min(80, trimmed.Length))} → key: {key}");
                     addedKeys.Add(key);
                 }
             }
@@ -192,6 +215,7 @@ public class GitDiffService
                 var key = ExtractKeyFromJsonLine(trimmed.Substring(1).Trim());
                 if (!string.IsNullOrEmpty(key))
                 {
+                    Console.WriteLine($"[ParseJsonDiff] Found REMOVED line: {trimmed.Substring(0, Math.Min(80, trimmed.Length))} → key: {key}");
                     removedKeys.Add(key);
                 }
             }
@@ -204,13 +228,16 @@ public class GitDiffService
             if (removedKeys.Contains(key))
             {
                 changes[key] = ChangeType.Modified;
+                Console.WriteLine($"[ParseJsonDiff] → MODIFIED: {key}");
             }
             else
             {
                 changes[key] = ChangeType.Added;
+                Console.WriteLine($"[ParseJsonDiff] → ADDED: {key}");
             }
         }
 
+        Console.WriteLine($"[ParseJsonDiff] Returning {changes.Count} change{(changes.Count == 1 ? "" : "s")}");
         return changes;
     }
 
@@ -225,8 +252,11 @@ public class GitDiffService
 
         if (string.IsNullOrWhiteSpace(diffContent))
         {
+            Console.WriteLine("[ParseResxDiff] Empty diff content");
             return changes;
         }
+
+        Console.WriteLine($"[ParseResxDiff] Parsing {diffContent.Length} chars of diff");
 
         // Parse RESX diff format
         // Look for <data name="key"> elements
@@ -244,6 +274,7 @@ public class GitDiffService
                 var key = ExtractKeyFromResxLine(trimmed.Substring(1).Trim());
                 if (!string.IsNullOrEmpty(key))
                 {
+                    Console.WriteLine($"[ParseResxDiff] Found ADDED line: {trimmed.Substring(0, Math.Min(80, trimmed.Length))} → key: {key}");
                     addedKeys.Add(key);
                 }
             }
@@ -252,6 +283,7 @@ public class GitDiffService
                 var key = ExtractKeyFromResxLine(trimmed.Substring(1).Trim());
                 if (!string.IsNullOrEmpty(key))
                 {
+                    Console.WriteLine($"[ParseResxDiff] Found REMOVED line: {trimmed.Substring(0, Math.Min(80, trimmed.Length))} → key: {key}");
                     removedKeys.Add(key);
                 }
             }
@@ -264,13 +296,16 @@ public class GitDiffService
             if (removedKeys.Contains(key))
             {
                 changes[key] = ChangeType.Modified;
+                Console.WriteLine($"[ParseResxDiff] → MODIFIED: {key}");
             }
             else
             {
                 changes[key] = ChangeType.Added;
+                Console.WriteLine($"[ParseResxDiff] → ADDED: {key}");
             }
         }
 
+        Console.WriteLine($"[ParseResxDiff] Returning {changes.Count} change{(changes.Count == 1 ? "" : "s")}");
         return changes;
     }
 
