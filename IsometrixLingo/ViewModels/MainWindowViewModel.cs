@@ -3398,50 +3398,91 @@ public partial class MainWindowViewModel : ViewModelBase
                 StatusMessage = $"Grouped into {fileGroups.Count} file group{(fileGroups.Count == 1 ? "" : "s")}";
                 await Task.Delay(1000);
 
+                // Get list of ALL changed files in this repo
+                var changedFilePaths = _gitDiffService.GetChangedFiles(repoPath, branches.deployedBranch, branches.releaseBranch);
+                StatusMessage = $"Git found {changedFilePaths.Count} changed file{(changedFilePaths.Count == 1 ? "" : "s")} in repo";
+                await Task.Delay(1000);
+
                 foreach (var fileGroup in fileGroups)
                 {
                     var source = fileGroup.Key;
                     if (source == null || source.DirectoryPath == null)
                         continue;
 
-                    // Construct file path relative to repo
-                    var fileName = source.Type == FileType.Json
-                        ? $"{source.Name}.en.json"  // Assuming .en.json for English files
-                        : $"{source.Name}.resx";     // Base RESX name
+                    // Find all changed files matching this source (any language variant)
+                    var sourceBasePath = Path.Combine(source.DirectoryPath, source.Name);
+                    var relativeBasePath = Path.GetRelativePath(repoPath, sourceBasePath);
+                    
+                    // Match changed files that start with our base path
+                    // e.g., "Forms" matches "Forms.en.json", "Forms.es.json", "Forms.resx", "Forms_es.resx", etc.
+                    var matchingChangedFiles = changedFilePaths
+                        .Where(path => 
+                        {
+                            var fileName = Path.GetFileName(path);
+                            var baseName = source.Type == FileType.Json
+                                ? fileName.Split('.')[0]  // For JSON: Forms.es.json → Forms
+                                : fileName.Split('_')[0].Replace(".resx", ""); // For RESX: Forms_es.resx → Forms
+                            return baseName.Equals(source.Name, StringComparison.OrdinalIgnoreCase) &&
+                                   Path.GetDirectoryName(path)?.Equals(source.DirectoryPath, StringComparison.OrdinalIgnoreCase) == true;
+                        })
+                        .ToList();
 
-                    var fullFilePath = Path.Combine(source.DirectoryPath, fileName);
-                    var relativeFilePath = Path.GetRelativePath(repoPath, fullFilePath);
+                    if (matchingChangedFiles.Count == 0)
+                    {
+                        StatusMessage = $"No changed files found for {source.Name} in git diff";
+                        await Task.Delay(500);
+                        continue;
+                    }
 
-                    StatusMessage = $"Git diff: repo='{repoPath}', deployed='{branches.deployedBranch}', release='{branches.releaseBranch}', file='{relativeFilePath}'";
-                    await Task.Delay(2000); // Give time to read
+                    StatusMessage = $"Found {matchingChangedFiles.Count} changed file{(matchingChangedFiles.Count == 1 ? "" : "s")} for {source.Name}";
+                    await Task.Delay(1000);
 
-                    // Run git diff on this file
-                    var diffContent = _gitDiffService.GetFileDiff(repoPath, branches.deployedBranch, branches.releaseBranch, relativeFilePath);
+                    // Aggregate changes from all language files for this source
+                    var aggregatedChanges = new Dictionary<string, ChangeType>();
 
-                    StatusMessage = $"Checking {relativeFilePath}: {(string.IsNullOrEmpty(diffContent) ? "NO CHANGES" : "HAS CHANGES")}";
-                    await Task.Delay(500);
+                    foreach (var changedFilePath in matchingChangedFiles)
+                    {
+                        StatusMessage = $"Git diff: {changedFilePath}";
+                        await Task.Delay(1000);
 
-                    if (string.IsNullOrEmpty(diffContent))
+                        // Run git diff on this file
+                        var diffContent = _gitDiffService.GetFileDiff(repoPath, branches.deployedBranch, branches.releaseBranch, changedFilePath);
+
+                        StatusMessage = $"Checking {changedFilePath}: {(string.IsNullOrEmpty(diffContent) ? "NO CHANGES" : "HAS CHANGES")}";
+                        await Task.Delay(500);
+
+                        if (string.IsNullOrEmpty(diffContent))
+                            continue;
+
+                        // Parse diff based on file type
+                        var changes = source.Type == FileType.Json
+                            ? _gitDiffService.ParseJsonDiff(diffContent)
+                            : _gitDiffService.ParseResxDiff(diffContent);
+
+                        StatusMessage = $"Parsed {changes.Count} change{(changes.Count == 1 ? "" : "s")} from {Path.GetFileName(changedFilePath)}";
+                        await Task.Delay(500);
+
+                        // Merge changes into aggregated dictionary
+                        foreach (var kvp in changes)
+                        {
+                            aggregatedChanges[kvp.Key] = kvp.Value;
+                        }
+                    }
+
+                    // If no changes found for this source, skip
+                    if (aggregatedChanges.Count == 0)
                         continue;
 
-                    // Parse diff based on file type
-                    Dictionary<string, ChangeType> changes = source.Type == FileType.Json
-                        ? _gitDiffService.ParseJsonDiff(diffContent)
-                        : _gitDiffService.ParseResxDiff(diffContent);
-
-                    StatusMessage = $"Parsed {changes.Count} change{(changes.Count == 1 ? "" : "s")} from {relativeFilePath}";
-                    await Task.Delay(500);
-
-                    // Create file change info for metadata
+                    // Create file change info for metadata (using first matching file path for metadata)
                     var fileChangeInfo = new FileChangeInfo
                     {
-                        Path = relativeFilePath
+                        Path = matchingChangedFiles[0]
                     };
 
                     // Apply ChangeType to translation keys and collect metadata
                     foreach (var key in fileGroup)
                     {
-                        if (changes.TryGetValue(key.Key, out var changeType))
+                        if (aggregatedChanges.TryGetValue(key.Key, out var changeType))
                         {
                             key.ChangeType = changeType;
                             totalChanges++;
@@ -3471,8 +3512,8 @@ public partial class MainWindowViewModel : ViewModelBase
 
                         if (filePair != null)
                         {
-                            filePair.ModifiedCount = fileChangeInfo.ModifiedKeys.Count;
-                            filePair.AddedCount = fileChangeInfo.AddedKeys.Count;
+                            filePair.ModifiedCount += fileChangeInfo.ModifiedKeys.Count;
+                            filePair.AddedCount += fileChangeInfo.AddedKeys.Count;
                         }
                     }
                 }

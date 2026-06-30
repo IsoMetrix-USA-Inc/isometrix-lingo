@@ -92,14 +92,25 @@ public class GitDiffService
     /// <returns>Commit SHA hash, or null if branch doesn't exist</returns>
     public string? GetCommitHash(string repoPath, string branchName)
     {
+        Log($"GetCommitHash: repo='{repoPath}', branch='{branchName}'");
         try
         {
             using var repo = new Repository(repoPath);
             var branch = repo.Branches[branchName];
-            return branch?.Tip?.Sha;
+            
+            if (branch == null)
+            {
+                Log($"GetCommitHash: Branch '{branchName}' NOT FOUND");
+                return null;
+            }
+            
+            var sha = branch?.Tip?.Sha;
+            Log($"GetCommitHash: Branch '{branchName}' → {(sha != null ? sha[..7] : "NULL")}");
+            return sha;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Log($"GetCommitHash: ERROR - {ex.Message}");
             return null;
         }
     }
@@ -281,32 +292,70 @@ public class GitDiffService
         Log($"[ParseResxDiff] Parsing {diffContent.Length} chars of diff");
 
         // Parse RESX diff format
-        // Look for <data name="key"> elements
+        // In RESX files, the <data name="key"> line doesn't change, but the <value> line does
+        // So we need to track context: when we see a data name, remember it
+        // Then when we see +/- value lines, attribute them to that key
 
         var lines = diffContent.Split('\n');
         var addedKeys = new HashSet<string>();
         var removedKeys = new HashSet<string>();
+        string? currentKey = null;
 
-        foreach (var line in lines)
+        for (int i = 0; i < lines.Length; i++)
         {
+            var line = lines[i];
             var trimmed = line.Trim();
 
-            if (trimmed.StartsWith("+") && !trimmed.StartsWith("+++"))
+            // Look for <data name="key"> in context lines (no + or -)
+            if (!trimmed.StartsWith("+") && !trimmed.StartsWith("-"))
             {
-                var key = ExtractKeyFromResxLine(trimmed.Substring(1).Trim());
-                if (!string.IsNullOrEmpty(key))
+                var dataMatch = System.Text.RegularExpressions.Regex.Match(trimmed, @"<data\s+name=""([^""]+)""");
+                if (dataMatch.Success)
                 {
-                    Log($"[ParseResxDiff] Found ADDED line: {trimmed.Substring(0, Math.Min(80, trimmed.Length))} → key: {key}");
-                    addedKeys.Add(key);
+                    currentKey = dataMatch.Groups[1].Value;
+                    Log($"[ParseResxDiff] Tracking key: {currentKey}");
                 }
             }
+            // Look for added <value> lines
+            else if (trimmed.StartsWith("+") && !trimmed.StartsWith("+++"))
+            {
+                // Check if it's a <value> line
+                if (trimmed.Contains("<value>") && currentKey != null)
+                {
+                    Log($"[ParseResxDiff] Found ADDED value for key: {currentKey}");
+                    addedKeys.Add(currentKey);
+                }
+                // Or check if it's a <data name> line itself (new key added)
+                else
+                {
+                    var key = ExtractKeyFromResxLine(trimmed.Substring(1).Trim());
+                    if (!string.IsNullOrEmpty(key))
+                    {
+                        Log($"[ParseResxDiff] Found ADDED data element: {key}");
+                        addedKeys.Add(key);
+                        currentKey = key;
+                    }
+                }
+            }
+            // Look for removed <value> lines
             else if (trimmed.StartsWith("-") && !trimmed.StartsWith("---"))
             {
-                var key = ExtractKeyFromResxLine(trimmed.Substring(1).Trim());
-                if (!string.IsNullOrEmpty(key))
+                // Check if it's a <value> line
+                if (trimmed.Contains("<value>") && currentKey != null)
                 {
-                    Log($"[ParseResxDiff] Found REMOVED line: {trimmed.Substring(0, Math.Min(80, trimmed.Length))} → key: {key}");
-                    removedKeys.Add(key);
+                    Log($"[ParseResxDiff] Found REMOVED value for key: {currentKey}");
+                    removedKeys.Add(currentKey);
+                }
+                // Or check if it's a <data name> line itself (key removed)
+                else
+                {
+                    var key = ExtractKeyFromResxLine(trimmed.Substring(1).Trim());
+                    if (!string.IsNullOrEmpty(key))
+                    {
+                        Log($"[ParseResxDiff] Found REMOVED data element: {key}");
+                        removedKeys.Add(key);
+                        currentKey = key;
+                    }
                 }
             }
         }
@@ -340,8 +389,19 @@ public class GitDiffService
 
     private string? ExtractKeyFromResxLine(string line)
     {
-        // Extract key from RESX line: <data name="key" xml:space="preserve">
-        var match = System.Text.RegularExpressions.Regex.Match(line, @"<data\s+name=""([^""]+)""");
-        return match.Success ? match.Groups[1].Value : null;
+        // In RESX diffs, the <data name="..."> line defines the key
+        // But often the VALUE is what changes, not the data line itself
+        // So we look for: <data name="key" ...> OR <value>...</value>
+        
+        // Try to match <data name="key">
+        var dataMatch = System.Text.RegularExpressions.Regex.Match(line, @"<data\s+name=""([^""]+)""");
+        if (dataMatch.Success)
+        {
+            return dataMatch.Groups[1].Value;
+        }
+        
+        // If it's a <value> line, we can't extract the key directly
+        // The parser needs to track context
+        return null;
     }
 }
