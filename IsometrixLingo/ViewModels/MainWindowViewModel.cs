@@ -3345,17 +3345,40 @@ public partial class MainWindowViewModel : ViewModelBase
             }
 
             // If change detection is enabled and we have branch configurations, run git diff
-            StatusMessage = $"DetectChanges={DetectChanges}, BranchConfigs={_branchConfigurations.Count}";
-            await Task.Delay(1500);
-
             if (DetectChanges && _branchConfigurations.Count > 0)
             {
-                await RunGitChangeDetection();
-            }
-            else
-            {
-                StatusMessage = $"Skipping git change detection (DetectChanges={DetectChanges}, Configs={_branchConfigurations.Count})";
-                await Task.Delay(1500);
+                if (window == null && Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+                {
+                    window = desktop.MainWindow;
+                }
+
+                var progressViewModel = new ProgressDialogViewModel
+                {
+                    Title = "Detecting Git Changes"
+                };
+                var progressDialog = new ProgressDialog
+                {
+                    DataContext = progressViewModel
+                };
+
+                if (window != null)
+                {
+                    // Show the modal progress dialog while detection runs, then close it.
+                    var dialogTask = progressDialog.ShowDialog(window);
+                    try
+                    {
+                        await RunGitChangeDetection(progressViewModel);
+                    }
+                    finally
+                    {
+                        progressDialog.Close();
+                    }
+                    await dialogTask;
+                }
+                else
+                {
+                    await RunGitChangeDetection(progressViewModel);
+                }
             }
 
             FileMappingStepStatus = StepStatus.Completed;
@@ -3373,7 +3396,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private async Task RunGitChangeDetection()
+    private async Task RunGitChangeDetection(ProgressDialogViewModel progress)
     {
         var logFile = Path.Combine(Path.GetTempPath(), "isometrix-lingo-git-diff.log");
 
@@ -3386,16 +3409,9 @@ public partial class MainWindowViewModel : ViewModelBase
             catch { /* Ignore */ }
         }
 
-        StatusMessage = $"Git diff log: {logFile}";
-        await Task.Delay(2000);
-
-        StatusMessage = $"Starting git change detection for {_branchConfigurations.Count} repositor{(_branchConfigurations.Count == 1 ? "y" : "ies")}";
-        await Task.Delay(1500);
-
         try
         {
             var totalChanges = 0;
-            var processedRepos = 0;
 
             // Initialize change metadata
             _changeMetadata = new ChangeMetadata
@@ -3404,26 +3420,29 @@ public partial class MainWindowViewModel : ViewModelBase
                 SchemaVersion = "1.0"
             };
 
+            // ---- Phase 1: Gather work (fetch + discover which files actually changed) ----
+            // We must know the exact number of changed files up front so the progress bar
+            // can show a precise percentage as each file is processed.
+            progress.Percentage = 0;
+            progress.StatusText = "Preparing change detection...";
+
+            var workItems = new List<(string RepoPath, (string deployedBranch, string releaseBranch) Branches, SourceFile Source, List<TranslationKey> Keys, List<string> MatchingChangedFiles, RepositoryChangeInfo RepoChangeInfo)>();
+            var repoChangeInfos = new List<RepositoryChangeInfo>();
+            var totalFileDiffs = 0;
+
             foreach (var (repoPath, branches) in _branchConfigurations)
             {
                 var repoName = Path.GetFileName(repoPath);
 
                 // Fetch latest changes from remote
-                StatusMessage = $"Fetching latest changes for '{repoName}'... ({processedRepos + 1}/{_branchConfigurations.Count})";
+                progress.StatusText = $"Fetching latest changes for '{repoName}'...";
                 await _gitDiffService.FetchRepositoryAsync(repoPath);
 
-                // Analyze changes
-                StatusMessage = $"Analyzing changes in repository '{repoName}'... ({++processedRepos}/{_branchConfigurations.Count})";
+                progress.StatusText = $"Analyzing repository '{repoName}'...";
 
-                // Small delay to allow UI to update
-                await Task.Delay(100);
-
-                // Get commit hashes for metadata
-                var deployedCommit = _gitDiffService.GetCommitHash(repoPath, branches.deployedBranch) ?? string.Empty;
-                var releaseCommit = _gitDiffService.GetCommitHash(repoPath, branches.releaseBranch) ?? string.Empty;
-
-                StatusMessage = $"Deployed commit: {(string.IsNullOrEmpty(deployedCommit) ? "NOT FOUND" : deployedCommit[..7])}, Release commit: {(string.IsNullOrEmpty(releaseCommit) ? "NOT FOUND" : releaseCommit[..7])}";
-                await Task.Delay(1000); // Show commit info
+                // Get commit hashes for metadata (off the UI thread)
+                var deployedCommit = await Task.Run(() => _gitDiffService.GetCommitHash(repoPath, branches.deployedBranch) ?? string.Empty);
+                var releaseCommit = await Task.Run(() => _gitDiffService.GetCommitHash(repoPath, branches.releaseBranch) ?? string.Empty);
 
                 // Create repository change info
                 var repoChangeInfo = new RepositoryChangeInfo
@@ -3434,19 +3453,13 @@ public partial class MainWindowViewModel : ViewModelBase
                     DeployedCommit = deployedCommit,
                     ReleaseCommit = releaseCommit
                 };
+                repoChangeInfos.Add(repoChangeInfo);
 
                 // Get all translation keys from this repository
                 var allKeys = _translationStore.GetAllKeys();
                 Log($"Total keys in store: {allKeys.Count}");
 
-                // Log first few key paths for debugging
-                foreach (var key in allKeys.Take(3))
-                {
-                    Log($"  Key '{key.Key}' has DirectoryPath: '{key.Source?.DirectoryPath ?? "NULL"}'");
-                }
-
                 var repoFullPath = Path.GetFullPath(repoPath);
-                Log($"Looking for keys with DirectoryPath starting with: '{repoFullPath}'");
                 Log($"_rootDirectoryPath = '{_rootDirectoryPath ?? "NULL"}'");
 
                 // DirectoryPath is stored as relative path from _rootDirectoryPath
@@ -3457,48 +3470,25 @@ public partial class MainWindowViewModel : ViewModelBase
                         if (k.Source?.DirectoryPath == null || _rootDirectoryPath == null)
                             return false;
 
-                        // Resolve relative DirectoryPath to absolute
                         var absoluteDirectoryPath = Path.GetFullPath(Path.Combine(_rootDirectoryPath, k.Source.DirectoryPath));
-                        var match = absoluteDirectoryPath.StartsWith(repoFullPath, StringComparison.OrdinalIgnoreCase);
-
-                        if (match)
-                        {
-                            Log($"  MATCH: '{k.Source.DirectoryPath}' → '{absoluteDirectoryPath}' starts with '{repoFullPath}'");
-                        }
-
-                        return match;
+                        return absoluteDirectoryPath.StartsWith(repoFullPath, StringComparison.OrdinalIgnoreCase);
                     })
                     .ToList();
 
                 Log($"Found {keysInRepo.Count} keys in repo '{repoName}'");
-                StatusMessage = $"Found {keysInRepo.Count} keys in repo '{repoName}'";
-                await Task.Delay(1000);
 
                 // Group keys by source file
                 var fileGroups = keysInRepo.GroupBy(k => k.Source).ToList();
 
-                Log($"Grouped into {fileGroups.Count} file groups");
-                StatusMessage = $"Grouped into {fileGroups.Count} file group{(fileGroups.Count == 1 ? "" : "s")}";
-                await Task.Delay(1000);
-
-                // Get list of ALL changed files in this repo
-                var changedFilePaths = _gitDiffService.GetChangedFiles(repoPath, branches.deployedBranch, branches.releaseBranch);
+                // Get list of ALL changed files in this repo (off the UI thread)
+                var changedFilePaths = await Task.Run(() => _gitDiffService.GetChangedFiles(repoPath, branches.deployedBranch, branches.releaseBranch));
                 Log($"Git found {changedFilePaths.Count} changed files: {string.Join(", ", changedFilePaths)}");
-                StatusMessage = $"Git found {changedFilePaths.Count} changed file{(changedFilePaths.Count == 1 ? "" : "s")} in repo";
-                await Task.Delay(1000);
 
                 foreach (var fileGroup in fileGroups)
                 {
                     var source = fileGroup.Key;
                     if (source == null || source.DirectoryPath == null)
-                    {
-                        Log($"Skipping source with null name or directory");
                         continue;
-                    }
-
-                    Log($"Checking source: Name='{source.Name}', DirectoryPath='{source.DirectoryPath}', Type={source.Type}");
-                    StatusMessage = $"Checking source: {source.Name}, dir: {source.DirectoryPath}";
-                    await Task.Delay(500);
 
                     // DirectoryPath is stored as "repo-name/IsoMetrix.../..." but git returns "IsoMetrix.../..."
                     // Strip the repo name prefix from DirectoryPath before comparing
@@ -3508,8 +3498,6 @@ public partial class MainWindowViewModel : ViewModelBase
                     {
                         sourceDirectoryWithoutRepo = source.DirectoryPath.Substring(firstSlash + 1);
                     }
-
-                    Log($"  Source directory (stripped): '{sourceDirectoryWithoutRepo}'");
 
                     // Match changed files that start with our base path
                     // e.g., "Forms" matches "Forms.en.json", "Forms.es.json", "Forms.resx", "Forms_es.resx", etc.
@@ -3525,113 +3513,128 @@ public partial class MainWindowViewModel : ViewModelBase
                             var nameMatch = baseName.Equals(source.Name, StringComparison.OrdinalIgnoreCase);
                             var dirMatch = fileDir.Equals(sourceDirectoryWithoutRepo, StringComparison.OrdinalIgnoreCase);
 
-                            Log($"  Comparing file '{path}': fileName='{fileName}', baseName='{baseName}', fileDir='{fileDir}', nameMatch={nameMatch}, dirMatch={dirMatch}");
-
                             return nameMatch && dirMatch;
                         })
                         .ToList();
 
-                    Log($"Found {matchingChangedFiles.Count} matching changed files for source '{source.Name}'");
-
                     if (matchingChangedFiles.Count == 0)
-                    {
-                        StatusMessage = $"No changed files found for {source.Name} in git diff";
-                        await Task.Delay(500);
                         continue;
-                    }
 
-                    StatusMessage = $"Found {matchingChangedFiles.Count} changed file{(matchingChangedFiles.Count == 1 ? "" : "s")} for {source.Name}";
-                    await Task.Delay(1000);
+                    workItems.Add((repoPath, branches, source, fileGroup.ToList(), matchingChangedFiles, repoChangeInfo));
+                    totalFileDiffs += matchingChangedFiles.Count;
+                }
+            }
 
-                    // Aggregate changes from all language files for this source
-                    var aggregatedChanges = new Dictionary<string, ChangeType>();
+            Log($"Total file diffs to process: {totalFileDiffs}");
 
-                    foreach (var changedFilePath in matchingChangedFiles)
+            // ---- Phase 2: Process each changed file, advancing the bar by 1 file at a time ----
+            // Percentage is simply: files completed / total files.
+            progress.Percentage = 0;
+
+            if (totalFileDiffs == 0)
+            {
+                progress.Percentage = 100;
+                progress.StatusText = "No changed files detected.";
+            }
+
+            var completedFileDiffs = 0;
+
+            foreach (var item in workItems)
+            {
+                var source = item.Source;
+
+                // Aggregate changes from all language files for this source
+                var aggregatedChanges = new Dictionary<string, ChangeType>();
+
+                foreach (var changedFilePath in item.MatchingChangedFiles)
+                {
+                    progress.StatusText = $"Comparing {Path.GetFileName(changedFilePath)}...";
+
+                    // Run git diff + parse off the UI thread so the progress bar stays responsive
+                    var changes = await Task.Run(() =>
                     {
-                        StatusMessage = $"Git diff: {changedFilePath}";
-                        await Task.Delay(1000);
-
-                        // Run git diff on this file
-                        var diffContent = _gitDiffService.GetFileDiff(repoPath, branches.deployedBranch, branches.releaseBranch, changedFilePath);
-
-                        StatusMessage = $"Checking {changedFilePath}: {(string.IsNullOrEmpty(diffContent) ? "NO CHANGES" : "HAS CHANGES")}";
-                        await Task.Delay(500);
-
+                        var diffContent = _gitDiffService.GetFileDiff(item.RepoPath, item.Branches.deployedBranch, item.Branches.releaseBranch, changedFilePath);
                         if (string.IsNullOrEmpty(diffContent))
-                            continue;
+                            return new Dictionary<string, ChangeType>();
 
-                        // Parse diff based on file type
-                        var changes = source.Type == FileType.Json
+                        return source.Type == FileType.Json
                             ? _gitDiffService.ParseJsonDiff(diffContent)
                             : _gitDiffService.ParseResxDiff(diffContent);
+                    });
 
-                        StatusMessage = $"Parsed {changes.Count} change{(changes.Count == 1 ? "" : "s")} from {Path.GetFileName(changedFilePath)}";
-                        await Task.Delay(500);
-
-                        // Merge changes into aggregated dictionary
-                        foreach (var kvp in changes)
-                        {
-                            aggregatedChanges[kvp.Key] = kvp.Value;
-                        }
+                    // Merge changes into aggregated dictionary
+                    foreach (var kvp in changes)
+                    {
+                        aggregatedChanges[kvp.Key] = kvp.Value;
                     }
 
-                    // If no changes found for this source, skip
-                    if (aggregatedChanges.Count == 0)
-                        continue;
+                    completedFileDiffs++;
+                    progress.Percentage = (double)completedFileDiffs / totalFileDiffs * 100;
+                }
 
-                    // Create file change info for metadata.
-                    // Store the path WITH the repo directory prefix (same as source.DirectoryPath)
-                    // so it consistently matches the imported DirectoryPath on the PO side.
-                    var fileChangeInfo = new FileChangeInfo
-                    {
-                        Path = $"{source.DirectoryPath}/{Path.GetFileName(matchingChangedFiles[0])}"
-                    };
+                // If no changes found for this source, skip
+                if (aggregatedChanges.Count == 0)
+                    continue;
 
-                    // Apply ChangeType to translation keys and collect metadata
-                    foreach (var key in fileGroup)
+                // Create file change info for metadata.
+                // Store the path WITH the repo directory prefix (same as source.DirectoryPath)
+                // so it consistently matches the imported DirectoryPath on the PO side.
+                var fileChangeInfo = new FileChangeInfo
+                {
+                    Path = $"{source.DirectoryPath}/{Path.GetFileName(item.MatchingChangedFiles[0])}"
+                };
+
+                // Apply ChangeType to translation keys and collect metadata
+                foreach (var key in item.Keys)
+                {
+                    if (aggregatedChanges.TryGetValue(key.Key, out var changeType))
                     {
-                        if (aggregatedChanges.TryGetValue(key.Key, out var changeType))
+                        key.ChangeType = changeType;
+                        totalChanges++;
+
+                        if (changeType == ChangeType.Modified)
                         {
-                            key.ChangeType = changeType;
-                            totalChanges++;
-
-                            // Add to metadata
-                            if (changeType == ChangeType.Modified)
-                            {
-                                fileChangeInfo.ModifiedKeys.Add(key.Key);
-                            }
-                            else if (changeType == ChangeType.Added)
-                            {
-                                fileChangeInfo.AddedKeys.Add(key.Key);
-                            }
+                            fileChangeInfo.ModifiedKeys.Add(key.Key);
                         }
-                    }
-
-                    // Only add file to metadata if it has changes
-                    if (fileChangeInfo.ModifiedKeys.Count > 0 || fileChangeInfo.AddedKeys.Count > 0)
-                    {
-                        repoChangeInfo.Files.Add(fileChangeInfo);
-
-                        // Update file pair badge counts
-                        var filePair = FilePairs.FirstOrDefault(fp =>
-                            fp.BaseName == source.Name &&
-                            fp.FileType == source.Type &&
-                            fp.DirectoryPath == source.DirectoryPath);
-
-                        if (filePair != null)
+                        else if (changeType == ChangeType.Added)
                         {
-                            filePair.ModifiedCount += fileChangeInfo.ModifiedKeys.Count;
-                            filePair.AddedCount += fileChangeInfo.AddedKeys.Count;
+                            fileChangeInfo.AddedKeys.Add(key.Key);
                         }
                     }
                 }
 
-                // Only add repo to metadata if it has file changes
+                // Only add file to metadata if it has changes
+                if (fileChangeInfo.ModifiedKeys.Count > 0 || fileChangeInfo.AddedKeys.Count > 0)
+                {
+                    item.RepoChangeInfo.Files.Add(fileChangeInfo);
+
+                    // Update file pair badge counts
+                    var filePair = FilePairs.FirstOrDefault(fp =>
+                        fp.BaseName == source.Name &&
+                        fp.FileType == source.Type &&
+                        fp.DirectoryPath == source.DirectoryPath);
+
+                    if (filePair != null)
+                    {
+                        filePair.ModifiedCount += fileChangeInfo.ModifiedKeys.Count;
+                        filePair.AddedCount += fileChangeInfo.AddedKeys.Count;
+                    }
+                }
+            }
+
+            // Only add repos that actually have file changes to metadata
+            foreach (var repoChangeInfo in repoChangeInfos)
+            {
                 if (repoChangeInfo.Files.Count > 0)
                 {
                     _changeMetadata.Repositories.Add(repoChangeInfo);
                 }
             }
+
+            progress.Percentage = 100;
+            progress.StatusText = totalChanges > 0
+                ? $"Found {totalChanges} modified or added key{(totalChanges == 1 ? "" : "s")}."
+                : "No changes detected.";
 
             StatusMessage = totalChanges > 0
                 ? $"Change detection complete. Found {totalChanges} modified or added translation key{(totalChanges == 1 ? "" : "s")}."

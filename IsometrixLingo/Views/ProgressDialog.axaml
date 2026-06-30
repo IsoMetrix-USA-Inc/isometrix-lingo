@@ -1,0 +1,52 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:IsometrixLingo.ViewModels"
+        x:Class="IsometrixLingo.Views.ProgressDialog"
+        x:DataType="vm:ProgressDialogViewModel"
+        Title="{Binding Title}"
+        Width="460"
+        Height="200"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False">
+
+    <Border Background="{DynamicResource ThemeBackgroundBrush}"
+            Padding="28">
+        <Grid RowDefinitions="Auto,*,Auto">
+
+            <!-- Title -->
+            <TextBlock Grid.Row="0"
+                       Text="{Binding Title}"
+                       FontSize="18"
+                       FontWeight="Bold"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,18"/>
+
+            <!-- Progress bar with centered percentage -->
+            <Grid Grid.Row="1" VerticalAlignment="Center">
+                <ProgressBar Minimum="0"
+                             Maximum="100"
+                             Value="{Binding Percentage}"
+                             Height="28"
+                             CornerRadius="6"/>
+                <TextBlock Text="{Binding PercentageText}"
+                           FontSize="14"
+                           FontWeight="Bold"
+                           Foreground="White"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"/>
+            </Grid>
+
+            <!-- Status text -->
+            <TextBlock Grid.Row="2"
+                       Text="{Binding StatusText}"
+                       FontSize="12"
+                       Foreground="#666"
+                       TextWrapping="Wrap"
+                       MaxLines="2"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       Margin="0,18,0,0"/>
+        </Grid>
+    </Border>
+</Window>
