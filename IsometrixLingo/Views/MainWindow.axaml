@@ -87,6 +87,27 @@
             <Setter Property="Background" Value="#2E7D32"/>
             <Setter Property="Foreground" Value="White"/>
         </Style>
+
+        <!-- Windows caption buttons (minimize / maximize / close) -->
+        <Style Selector="Button.caption">
+            <Setter Property="Width" Value="46"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.caption:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#22000000"/>
+        </Style>
+        <Style Selector="Button.caption.close:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#E81123"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
     </Window.Styles>
 
     <Design.DataContext>
@@ -95,13 +116,14 @@
 
     <Panel>
         <!-- Custom Title Bar -->
-        <Grid Height="40" VerticalAlignment="Top" ColumnDefinitions="70,Auto,*,Auto,Auto">
+        <Grid x:Name="TitleBar" Height="40" VerticalAlignment="Top" ColumnDefinitions="70,Auto,*,Auto,Auto,Auto"
+              PointerPressed="OnTitleBarPointerPressed">
             <!-- Spacer for native window controls (macOS left side) -->
             <Border Grid.Column="0" IsHitTestVisible="False"/>
             
             <!-- App Title and Version (Top Left) -->
             <TextBlock Grid.Column="1"
-                       Text="Isometrix Lingo v4.0.0"
+                       Text="Isometrix Lingo v5.0"
                        FontSize="13"
                        FontWeight="SemiBold"
                        VerticalAlignment="Center"
@@ -137,6 +159,16 @@
                     </TextBlock>
                 </ToolTip.Tip>
             </Button>
+            
+            <!-- Windows caption buttons (hidden on macOS, which uses native traffic lights) -->
+            <StackPanel Grid.Column="5"
+                        Orientation="Horizontal"
+                        VerticalAlignment="Top"
+                        IsVisible="{OnPlatform false, Windows=true}">
+                <Button Classes="caption" Content="&#xE921;" Click="OnMinimizeClick"/>
+                <Button x:Name="MaximizeButton" Classes="caption" Content="&#xE922;" Click="OnMaximizeClick"/>
+                <Button Classes="caption close" Content="&#xE8BB;" Click="OnCloseClick"/>
+            </StackPanel>
         </Grid>
         
         <!-- Main Content -->

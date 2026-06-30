@@ -32,6 +32,16 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
+        // On Windows the system title bar draws the native title text over our
+        // extended client area, overlapping our custom title bar. Dropping the
+        // system title bar (keeping just the resizable border) lets our custom
+        // title bar and caption buttons be the only title shown. macOS keeps its
+        // full decorations (native traffic lights) and hides the title text.
+        if (OperatingSystem.IsWindows())
+        {
+            WindowDecorations = WindowDecorations.BorderOnly;
+        }
+
         DataContextChanged += OnDataContextChanged;
         Closing += OnClosing;
 
@@ -51,6 +61,47 @@ public partial class MainWindow : Window
     }
 
     private bool _isClosingConfirmed = false;
+
+    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            if (e.ClickCount == 2)
+            {
+                ToggleWindowState();
+            }
+            else
+            {
+                BeginMoveDrag(e);
+            }
+        }
+    }
+
+    private void OnMinimizeClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => WindowState = WindowState.Minimized;
+
+    private void OnMaximizeClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => ToggleWindowState();
+
+    private void OnCloseClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => Close();
+
+    private void ToggleWindowState()
+        => WindowState = WindowState == WindowState.Maximized
+            ? WindowState.Normal
+            : WindowState.Maximized;
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+
+        if (change.Property == WindowStateProperty
+            && this.FindControl<Button>("MaximizeButton") is { } maximizeButton)
+        {
+            // Restore glyph when maximized, maximize glyph otherwise.
+            maximizeButton.Content = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+        }
+    }
 
     private async void OnClosing(object? sender, CancelEventArgs e)
     {
