@@ -135,7 +135,19 @@ public partial class BranchComparisonViewModel : ViewModelBase
             return "origin/master";
         }
 
-        // If neither remote tracking branch exists, default to "origin/main"
+        // Check for local "main" branch
+        if (_gitDiffService.ValidateBranchExists(repoPath, "main"))
+        {
+            return "main";
+        }
+        
+        // Check for local "master" branch
+        if (_gitDiffService.ValidateBranchExists(repoPath, "master"))
+        {
+            return "master";
+        }
+        
+        // If nothing found, default to "origin/main" (user will get validation error if wrong)
         return "origin/main";
     }
 

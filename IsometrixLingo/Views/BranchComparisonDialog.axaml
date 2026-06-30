@@ -63,9 +63,9 @@
                 <TextBlock Text="Deployed Branch (current production):" 
                            FontWeight="SemiBold"/>
                 <TextBox Text="{Binding DeployedBranch}"
-                         PlaceholderText="e.g., origin/main, origin/master"
+                         PlaceholderText="e.g., origin/main, main, master"
                          LostFocus="DeployedBranch_LostFocus"/>
-                <TextBlock Text="The branch currently deployed in production."
+                <TextBlock Text="The branch currently deployed in production (remote or local)."
                            FontSize="11"
                            Foreground="#666"/>
             </StackPanel>
@@ -75,9 +75,9 @@
                 <TextBlock Text="Release Branch (new release candidate):"
                            FontWeight="SemiBold"/>
                 <TextBox Text="{Binding ReleaseBranch}"
-                         PlaceholderText="e.g., origin/release/v5.0.0"
+                         PlaceholderText="e.g., origin/release/v5.0.0, release/v5.0.0"
                          LostFocus="ReleaseBranch_LostFocus"/>
-                <TextBlock Text="The branch containing changes for the new release."
+                <TextBlock Text="The branch containing changes for the new release (remote or local)."
                            FontSize="11"
                            Foreground="#666"/>
             </StackPanel>
