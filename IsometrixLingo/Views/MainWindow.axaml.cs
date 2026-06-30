@@ -32,6 +32,16 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
+        // On Windows the system title bar draws the native title text over our
+        // extended client area, overlapping our custom title bar. Dropping the
+        // system title bar (keeping just the resizable border) lets our custom
+        // title bar and caption buttons be the only title shown. macOS keeps its
+        // full decorations (native traffic lights) and hides the title text.
+        if (OperatingSystem.IsWindows())
+        {
+            WindowDecorations = WindowDecorations.BorderOnly;
+        }
+
         DataContextChanged += OnDataContextChanged;
         Closing += OnClosing;
 
@@ -51,6 +61,47 @@ public partial class MainWindow : Window
     }
 
     private bool _isClosingConfirmed = false;
+
+    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            if (e.ClickCount == 2)
+            {
+                ToggleWindowState();
+            }
+            else
+            {
+                BeginMoveDrag(e);
+            }
+        }
+    }
+
+    private void OnMinimizeClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => WindowState = WindowState.Minimized;
+
+    private void OnMaximizeClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => ToggleWindowState();
+
+    private void OnCloseClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        => Close();
+
+    private void ToggleWindowState()
+        => WindowState = WindowState == WindowState.Maximized
+            ? WindowState.Normal
+            : WindowState.Maximized;
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+
+        if (change.Property == WindowStateProperty
+            && this.FindControl<Button>("MaximizeButton") is { } maximizeButton)
+        {
+            // Restore glyph when maximized, maximize glyph otherwise.
+            maximizeButton.Content = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+        }
+    }
 
     private async void OnClosing(object? sender, CancelEventArgs e)
     {
@@ -141,8 +192,8 @@ public partial class MainWindow : Window
             return;
 
         var editViewModel = new EditTranslationViewModel(
-            translationKey, 
-            mainViewModel.TranslationStore, 
+            translationKey,
+            mainViewModel.TranslationStore,
             mainViewModel.CurrentMode,
             mainViewModel.Username);
         var dialog = new EditTranslationDialog
@@ -156,7 +207,7 @@ public partial class MainWindow : Window
         {
             // Mark as having unsaved changes (for both Edit and Suggest modes)
             mainViewModel.HasUnsavedChanges = true;
-            
+
             // Update status message to show modified count
             var modifiedCount = mainViewModel.TranslationStore.GetModifiedKeys().Count;
 
@@ -206,7 +257,7 @@ public partial class MainWindow : Window
                         var dirPath = key.Source.DirectoryPath;
                         if (dirPath.Length > 30)
                             dirPath = "..." + dirPath.Substring(dirPath.Length - 27);
-                        
+
                         var dirBlock = new TextBlock
                         {
                             Text = dirPath,
@@ -517,7 +568,7 @@ public partial class MainWindow : Window
                     Command = viewModel.EditTranslationCommand,
                     CommandParameter = data
                 };
-                
+
                 // Bind tooltip to CurrentMode for context-aware text
                 var editTooltipBinding = new Binding("CurrentMode")
                 {
@@ -528,6 +579,59 @@ public partial class MainWindow : Window
 
                 panel.Children.Add(toggleButton);
                 panel.Children.Add(editButton);
+
+                // Approve/review button (only for modified or added keys)
+                if (data is TranslationKey changeKey)
+                {
+                    var approveButton = new Button
+                    {
+                        FontSize = 18,
+                        Padding = new Avalonia.Thickness(8, 4),
+                        HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+                        VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center
+                    };
+
+                    // Only show this button for keys that are modified/added (ChangeType != None)
+                    var approveVisibilityBinding = new Binding("ChangeType")
+                    {
+                        Source = changeKey,
+                        Converter = new ChangeTypeToBoolConverter()
+                    };
+                    approveButton.Bind(Button.IsVisibleProperty, approveVisibilityBinding);
+
+                    // Icon reflects approval state: filled green check when approved, outline when not
+                    var approveContentBinding = new Binding("IsApproved")
+                    {
+                        Source = changeKey,
+                        Converter = new ApproveButtonContentConverter()
+                    };
+                    approveButton.Bind(Button.ContentProperty, approveContentBinding);
+
+                    // Foreground reflects approval state (green when approved)
+                    var approveForegroundBinding = new Binding("IsApproved")
+                    {
+                        Source = changeKey,
+                        Converter = new ApproveButtonForegroundConverter()
+                    };
+                    approveButton.Bind(Button.ForegroundProperty, approveForegroundBinding);
+
+                    // Tooltip reflects approval state
+                    var approveTooltipBinding = new Binding("IsApproved")
+                    {
+                        Source = changeKey,
+                        Converter = new ApproveButtonTooltipConverter()
+                    };
+                    approveButton.Bind(ToolTip.TipProperty, approveTooltipBinding);
+
+                    approveButton.Click += (s, e) =>
+                    {
+                        changeKey.IsApproved = !changeKey.IsApproved;
+                        viewModel.OnKeyApprovalChanged();
+                    };
+
+                    panel.Children.Add(approveButton);
+                }
+
                 return panel;
             })
         };
@@ -583,16 +687,16 @@ public partial class MainWindow : Window
                     if (items != null)
                     {
                         var itemList = items.ToList();
-                        
+
                         // Filter to only directories (IStorageFolder)
                         var directories = itemList.OfType<IStorageFolder>().ToList();
-                        
+
                         if (directories.Count == 0)
                         {
                             viewModel.StatusMessage = "Please drop a directory, not individual files.";
                             return;
                         }
-                        
+
                         if (directories.Count > 1)
                         {
                             viewModel.StatusMessage = "Please drop only one directory at a time.";

@@ -36,10 +36,10 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly DeploymentService _deploymentService;
     private string _lastExportFolder = string.Empty;
     private string _lastExportFileName = string.Empty;
-    
+
     // Store minimal display paths for SourceFiles (for grid display)
     private Dictionary<SourceFile, string?> _sourceFileMinimalPaths = new();
-    
+
     /// <summary>
     /// Public accessor for minimal display paths (for grid binding)
     /// </summary>
@@ -52,6 +52,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private string _username = "User";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowDetectChangesCheckbox))]
     private bool _isDeveloper = false;
 
     [ObservableProperty]
@@ -77,6 +78,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanImport))]
+    [NotifyPropertyChangedFor(nameof(ShowDetectChangesCheckbox))]
     private bool _hasKeys;
 
     [ObservableProperty]
@@ -132,6 +134,12 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool _showOnlyWithSuggestions;
 
     [ObservableProperty]
+    private bool _showOnlyModifiedOrAdded;
+
+    [ObservableProperty]
+    private bool _includeReviewedKeys;
+
+    [ObservableProperty]
     private bool _showFilters = true;
 
     [ObservableProperty]
@@ -142,10 +150,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private ObservableCollection<ImportError> _importErrors = new();
-    
+
     [ObservableProperty]
     private bool _hasErrors;
-    
+
     [ObservableProperty]
     private int _errorCount;
 
@@ -195,14 +203,39 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private ObservableCollection<DeploymentHistoryEntry> _deploymentHistory = new();
 
+    // Git change detection properties
+    [ObservableProperty]
+    private bool _detectChanges = true; // Default to enabled
+
+    private Dictionary<string, (string deployedBranch, string releaseBranch)> _branchConfigurations = new();
+    private readonly GitDiffService _gitDiffService = new();
+    private List<DirectoryScanResult> _selectedRepositories = new();
+    private ChangeMetadata? _changeMetadata = null;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowDetectChangesCheckbox))]
+    private bool _metadataLoadedFromImport = false; // Track if metadata came from import
+
+    public bool ShowDetectChangesCheckbox => IsDeveloper && HasKeys && !MetadataLoadedFromImport;
+
+    partial void OnMetadataLoadedFromImportChanged(bool value)
+    {
+        // When change metadata is loaded from an import, git change detection is redundant:
+        // hide the checkbox and ensure detection is turned off.
+        if (value)
+        {
+            DetectChanges = false;
+        }
+    }
+
     public bool HasSuggestedDeploymentRoot => !string.IsNullOrWhiteSpace(SuggestedDeploymentRoot);
     public bool HasDeploymentPreview => DeploymentPreviewItems.Count > 0;
     public bool HasValidationMessage => !string.IsNullOrWhiteSpace(ValidationMessage);
     public bool HasDeploymentValidationResult => !string.IsNullOrWhiteSpace(DeploymentValidationMessage);
-    public SolidColorBrush DeploymentValidationBorderBrush => DeploymentValidationSuccess 
+    public SolidColorBrush DeploymentValidationBorderBrush => DeploymentValidationSuccess
         ? new SolidColorBrush(Color.FromRgb(76, 175, 80))   // Green
         : new SolidColorBrush(Color.FromRgb(239, 83, 80));  // Red
-    public bool CanDeploy => !string.IsNullOrWhiteSpace(DeploymentRootPath) && 
+    public bool CanDeploy => !string.IsNullOrWhiteSpace(DeploymentRootPath) &&
                              DeploymentRootPath != "Click 'Select Folder' to choose deployment directory" &&
                              DeploymentValidationSuccess;
     public string DeployButtonText => ShowDeploymentSuccess ? "Re-deploy" : "Deploy";
@@ -379,7 +412,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             // Clear previous errors
             ImportErrors.Clear();
-            
+
             var files = await window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
                 Title = "Select Translation Files",
@@ -400,7 +433,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
             // PHASE 1: Validate ALL files first (all-or-nothing approach)
             var validatedFiles = new List<(IStorageFile file, string filePath, string fileName, string extension, FileType fileType, string language)>();
-            
+
             foreach (var file in files)
             {
                 var filePath = file.Path.LocalPath;
@@ -423,10 +456,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
                 // Validate naming convention
                 var fileType = extension == ".json" ? FileType.Json : FileType.Resx;
-                var isValidName = fileType == FileType.Json 
+                var isValidName = fileType == FileType.Json
                     ? _jsonReader.ValidateNamingConvention(fileName)
                     : _resxReader.ValidateNamingConvention(fileName);
-                
+
                 if (!isValidName)
                 {
                     ImportErrors.Add(new ImportError
@@ -443,7 +476,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
                 // Check if language is supported (en or es only)
                 var language = ExtractLanguage(fileName, fileType);
-                
+
                 if (string.IsNullOrEmpty(language) || (language != "en" && language != "es"))
                 {
                     ImportErrors.Add(new ImportError
@@ -595,10 +628,10 @@ public partial class MainWindowViewModel : ViewModelBase
             }
 
             UpdateFileFilters();
-            
+
             // Success - all files imported
             StatusMessage = $"Successfully imported {translationFiles.Count} file(s). Review the imported files below and click 'Confirm & Continue' to proceed.";
-            
+
             HasKeys = _translationStore.GetAllKeys().Count > 0;
             ImportStepStatus = StepStatus.InProgress;
             LanguagesChanged?.Invoke(this, EventArgs.Empty);
@@ -654,7 +687,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     // Check if language is supported (en or es only)
                     var fileType = extension == ".json" ? FileType.Json : FileType.Resx;
                     var language = ExtractLanguage(fileName, fileType);
-                    
+
                     if (string.IsNullOrEmpty(language) || (language != "en" && language != "es"))
                     {
                         IgnoredFileNames.Add(fileName);
@@ -755,7 +788,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
             var branchWarning = new BranchWarningDialog();
             var confirmed = await branchWarning.ShowDialog<bool>(window);
-            
+
             if (!confirmed)
             {
                 StatusMessage = "Import cancelled.";
@@ -781,7 +814,7 @@ public partial class MainWindowViewModel : ViewModelBase
             };
 
             var importConfirmed = await selectorDialog.ShowDialog<bool>(window);
-            
+
             if (!importConfirmed)
             {
                 StatusMessage = "Import cancelled.";
@@ -793,18 +826,22 @@ public partial class MainWindowViewModel : ViewModelBase
 
             // Gather all files from parent directory AND selected subdirectories
             var allFilesToImport = new List<string>();
-            
+
             // First, check parent directory itself for translation files (non-recursive)
             var parentFiles = scanner.FindTranslationFilesInDirectory(parentPath);
             allFilesToImport.AddRange(parentFiles);
-            
+
             // Then, gather files from selected subdirectories (recursive)
             var selectedDirectories = selectorViewModel.Directories.Where(d => d.IsSelected).ToList();
+
+            // Store selected repositories for git change detection (used later in ConfirmImport)
+            _selectedRepositories = selectedDirectories;
+
             foreach (var dir in selectedDirectories)
             {
                 allFilesToImport.AddRange(dir.TranslationFiles);
             }
-            
+
             // Check if any files were found
             if (allFilesToImport.Count == 0)
             {
@@ -819,7 +856,7 @@ public partial class MainWindowViewModel : ViewModelBase
             ImportErrors.Clear();
 
             var validatedFiles = new List<(string filePath, string fileName, string extension, FileType fileType, string language)>();
-            
+
             foreach (var filePath in allFilesToImport)
             {
                 var fileName = Path.GetFileName(filePath);
@@ -830,12 +867,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 var fileDirectory = Path.GetDirectoryName(filePath) ?? string.Empty;
                 var relativePath = Path.GetRelativePath(parentPath, fileDirectory);
                 var directoryPath = relativePath != "." ? relativePath : null;
-                
+
                 // Extract base name
                 var baseName = ExtractBaseFileName(filePath, fileType);
 
                 // Check for duplicate files (same name, type, AND directory path)
-                var isDuplicate = _translationStore.SourceFiles.Any(sf => 
+                var isDuplicate = _translationStore.SourceFiles.Any(sf =>
                     string.Equals(sf.Name, baseName, StringComparison.OrdinalIgnoreCase) &&
                     sf.Type == fileType &&
                     sf.DirectoryPath == directoryPath);
@@ -854,7 +891,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
                 // Check if language is supported
                 var language = ExtractLanguage(fileName, fileType);
-                
+
                 if (string.IsNullOrEmpty(language) || (language != "en" && language != "es"))
                 {
                     var displayPath = directoryPath != null ? $"{directoryPath}/{fileName}" : fileName;
@@ -908,12 +945,12 @@ public partial class MainWindowViewModel : ViewModelBase
             foreach (var dirGroup in groupedByDirectory)
             {
                 var directoryPath = dirGroup.Key;
-                
+
                 foreach (var group in dirGroup.GroupBy(f => (ExtractBaseFileName(f.filePath, f.fileType), f.fileType)))
                 {
                     var baseName = group.Key.Item1;
                     var fileType = group.Key.Item2;
-                    
+
                     var filesToConsolidate = group.Select(f =>
                     {
                         return fileType == FileType.Json
@@ -960,7 +997,7 @@ public partial class MainWindowViewModel : ViewModelBase
             }
 
             UpdateFileFilters();
-            
+
             if (ImportErrors.Count > 0)
             {
                 StatusMessage = $"Imported {successCount} file(s) with {ImportErrors.Count} error(s). Check the errors list.";
@@ -969,7 +1006,7 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 StatusMessage = $"Successfully imported {successCount} file(s) from directory '{folder.Name}'.";
             }
-            
+
             HasKeys = _translationStore.GetAllKeys().Count > 0;
             ImportStepStatus = StepStatus.InProgress;
             LanguagesChanged?.Invoke(this, EventArgs.Empty);
@@ -1000,7 +1037,7 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 var branchWarning = new BranchWarningDialog();
                 var confirmed = await branchWarning.ShowDialog<bool>(window);
-                
+
                 if (!confirmed)
                 {
                     return;
@@ -1055,7 +1092,7 @@ public partial class MainWindowViewModel : ViewModelBase
             };
 
             var importConfirmed = await selectorDialog.ShowDialog<bool>(window);
-            
+
             if (!importConfirmed)
             {
                 return;
@@ -1066,18 +1103,22 @@ public partial class MainWindowViewModel : ViewModelBase
 
             // Step 5: Gather all files from parent directory AND selected subdirectories
             var allFilesToImport = new List<string>();
-            
+
             // First, check parent directory itself for translation files (non-recursive)
             var parentFiles = scanner.FindTranslationFilesInDirectory(parentPath);
             allFilesToImport.AddRange(parentFiles);
-            
+
             // Then, gather files from selected subdirectories (recursive)
             var selectedDirectories = selectorViewModel.Directories.Where(d => d.IsSelected).ToList();
+
+            // Store selected repositories for git change detection (used later in ConfirmImport)
+            _selectedRepositories = selectedDirectories;
+
             foreach (var dir in selectedDirectories)
             {
                 allFilesToImport.AddRange(dir.TranslationFiles);
             }
-            
+
             // Check if any files were found
             if (allFilesToImport.Count == 0)
             {
@@ -1090,7 +1131,7 @@ public partial class MainWindowViewModel : ViewModelBase
             ImportErrors.Clear();
 
             var validatedFiles = new List<(string filePath, string fileName, string extension, FileType fileType, string language)>();
-            
+
             foreach (var filePath in allFilesToImport)
             {
                 var fileName = Path.GetFileName(filePath);
@@ -1101,12 +1142,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 var fileDirectory = Path.GetDirectoryName(filePath) ?? string.Empty;
                 var relativePath = Path.GetRelativePath(parentPath, fileDirectory);
                 var directoryPath = relativePath != "." ? relativePath : null;
-                
+
                 // Extract base name for duplicate checking
                 var baseName = ExtractBaseFileName(filePath, fileType);
 
                 // Check for duplicate files (same name, type, AND directory path)
-                var isDuplicate = _translationStore.SourceFiles.Any(sf => 
+                var isDuplicate = _translationStore.SourceFiles.Any(sf =>
                     string.Equals(sf.Name, baseName, StringComparison.OrdinalIgnoreCase) &&
                     sf.Type == fileType &&
                     sf.DirectoryPath == directoryPath);
@@ -1125,10 +1166,10 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
 
                 // Validate naming convention
-                var isValidName = fileType == FileType.Json 
+                var isValidName = fileType == FileType.Json
                     ? _jsonReader.ValidateNamingConvention(fileName)
                     : _resxReader.ValidateNamingConvention(fileName);
-                
+
                 if (!isValidName)
                 {
                     ImportErrors.Add(new ImportError
@@ -1145,7 +1186,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
                 // Check if language is supported (en or es only)
                 var language = ExtractLanguage(fileName, fileType);
-                
+
                 if (string.IsNullOrEmpty(language) || (language != "en" && language != "es"))
                 {
                     ImportErrors.Add(new ImportError
@@ -1237,12 +1278,12 @@ public partial class MainWindowViewModel : ViewModelBase
                     // Calculate relative directory path from parent directory
                     var fileDirectory = Path.GetDirectoryName(filePath) ?? string.Empty;
                     var relativePath = Path.GetRelativePath(parentPath, fileDirectory);
-                    
+
                     // Only set if not "." (meaning the file is in a subdirectory, not the parent itself)
                     translationFile.RelativeDirectoryPath = relativePath != "." ? relativePath : null;
 
                     translationFiles.Add(translationFile);
-                    
+
                     // Add to imported file names with directory path if applicable
                     var displayPath = translationFile.RelativeDirectoryPath != null
                         ? $"{translationFile.RelativeDirectoryPath}/{fileName}"
@@ -1298,12 +1339,38 @@ public partial class MainWindowViewModel : ViewModelBase
             }
 
             UpdateFileFilters();
-            
+
+            // Check for metadata.json and import change tracking if present
+            var metadataService = new MetadataImportService();
+            if (metadataService.MetadataExists(parentPath))
+            {
+                var metadata = metadataService.LoadMetadata(parentPath);
+                if (metadata != null)
+                {
+                    var allKeys = _translationStore.GetAllKeys();
+                    metadataService.ApplyMetadataToKeys(metadata, allKeys, parentPath);
+                    _changeMetadata = metadata;
+                    MetadataLoadedFromImport = true;
+
+                    // Refresh the grid so newly-applied ChangeType values are reflected
+                    _translationStore.RefreshUI();
+
+                    var totalChanges = allKeys.Count(k => k.ChangeType != ChangeType.None);
+                    StatusMessage = $"Loaded change metadata: {totalChanges} modified/added key{(totalChanges == 1 ? "" : "s")} detected.";
+                    await Task.Delay(1500); // Show metadata message
+                }
+                else
+                {
+                    StatusMessage = "Warning: metadata.json found but could not be parsed. Continuing without change tracking.";
+                    await Task.Delay(1500);
+                }
+            }
+
             if (!HasErrors)
             {
                 StatusMessage = $"Successfully bulk imported {translationFiles.Count} file(s) from {selectedDirectories.Count} repositor{(selectedDirectories.Count == 1 ? "y" : "ies")}. Review the imported files and click 'Confirm & Continue'.";
             }
-            
+
             HasKeys = _translationStore.GetAllKeys().Count > 0;
             ImportStepStatus = StepStatus.InProgress;
             LanguagesChanged?.Invoke(this, EventArgs.Empty);
@@ -1340,7 +1407,7 @@ public partial class MainWindowViewModel : ViewModelBase
             _translationStore.AddKey(newKey);
             HasKeys = true;
             UpdateFileFilters();
-            
+
             var modeText = CurrentMode == EditMode.Edit ? "values" : "suggestions";
             StatusMessage = $"Added new key '{newKey.Key}' with {modeText} to {newKey.Source.Name}.";
             LanguagesChanged?.Invoke(this, EventArgs.Empty);
@@ -1382,7 +1449,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         // Update namespace filter items
         UpdateNamespaceFilterItems();
-        
+
         // Update file filter items
         UpdateFileFilterItems();
     }
@@ -1450,7 +1517,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         // If "All Namespaces" is selected or no specific namespaces, show all files
         var allNamespacesSelected = NamespaceFilterItems.FirstOrDefault()?.IsSelected == true;
-        
+
         IEnumerable<SourceFile> filesToShow;
         if (allNamespacesSelected || selectedNamespaces.Count == 0)
         {
@@ -1485,7 +1552,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         // Update display text
         UpdateFilesDisplayText();
-        
+
         // Apply file filters to ensure TranslationStore state is in sync with UI
         // (this is needed because setting IsSelected during initialization doesn't trigger events)
         ApplyFileFilters();
@@ -1647,7 +1714,7 @@ public partial class MainWindowViewModel : ViewModelBase
             .ToList();
 
         var allFilesSelected = FileFilterItems.FirstOrDefault()?.IsSelected == true;
-        
+
         // Priority 1: If specific files are selected, use those
         if (selectedFiles.Count > 0)
         {
@@ -1702,6 +1769,8 @@ public partial class MainWindowViewModel : ViewModelBase
         ShowOriginalValues = false;
         ShowOnlyMissingTranslations = false;
         ShowOnlyWithSuggestions = false;
+        ShowOnlyModifiedOrAdded = false;
+        IncludeReviewedKeys = false;
         _translationStore.FilterBySourceFiles(null!);
         _translationStore.FilterBySearchTerm(string.Empty);
         UpdateStatusMessage();
@@ -1728,6 +1797,32 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnShowOnlyWithSuggestionsChanged(bool value)
     {
         _translationStore.FilterBySuggestions(value);
+        UpdateStatusMessage();
+    }
+
+    partial void OnShowOnlyModifiedOrAddedChanged(bool value)
+    {
+        _translationStore.FilterByChangeType(value);
+        // When the modified/added filter is turned off, reset the secondary sub-filter
+        if (!value)
+        {
+            IncludeReviewedKeys = false;
+        }
+        UpdateStatusMessage();
+    }
+
+    partial void OnIncludeReviewedKeysChanged(bool value)
+    {
+        _translationStore.FilterIncludeReviewed(value);
+        UpdateStatusMessage();
+    }
+
+    /// <summary>
+    /// Called when a key's approval state is toggled so the grid re-applies the active filters.
+    /// </summary>
+    public void OnKeyApprovalChanged()
+    {
+        _translationStore.RefreshUI();
         UpdateStatusMessage();
     }
 
@@ -1778,7 +1873,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         // Detect new files that will be created
         var newFiles = DetectNewFilesForExport(allKeys);
-        
+
         // If there are new files, show confirmation
         if (newFiles.Count > 0)
         {
@@ -1846,7 +1941,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         var newFiles = new List<string>();
         var importedFileNamesLower = new HashSet<string>(
-            ImportedFileNames.Select(f => f.ToLower()), 
+            ImportedFileNames.Select(f => f.ToLower()),
             StringComparer.OrdinalIgnoreCase
         );
 
@@ -1874,8 +1969,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
                 else // RESX
                 {
-                    fileName = language == "en" 
-                        ? $"{source.Name}.resx" 
+                    fileName = language == "en"
+                        ? $"{source.Name}.resx"
                         : $"{source.Name}_{language}.resx";
                 }
 
@@ -2219,7 +2314,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
                 // Split the directory path into segments
                 var segments = file.DirectoryPath.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-                
+
                 // Find the minimal unique suffix by comparing with other files with the same name
                 var otherFiles = filesWithPaths.Where(f => f != file).ToList();
                 var minimalPath = file.DirectoryPath;
@@ -2228,7 +2323,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 for (int i = segments.Length - 1; i >= 0; i--)
                 {
                     var candidatePath = string.Join("/", segments.Skip(i));
-                    
+
                     // Check if this path is unique among files with the same name
                     var isUnique = !otherFiles.Any(other =>
                     {
@@ -2280,7 +2375,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 ExportStepStatus = ExportStepStatus,
                 DeployStepStatus = DeployStepStatus,
                 CurrentMode = CurrentMode,
-                
+
                 // Deployment-related properties
                 RootDirectoryPath = _rootDirectoryPath ?? string.Empty,
                 DeploymentRootPath = DeploymentRootPath != "Click 'Select Folder' to choose deployment directory" ? DeploymentRootPath : string.Empty,
@@ -2292,7 +2387,10 @@ public partial class MainWindowViewModel : ViewModelBase
                 DeploymentValidationMessage = DeploymentValidationMessage,
                 ShowDeploymentSuccess = ShowDeploymentSuccess,
                 DeploymentSuccessMessage = DeploymentSuccessMessage,
-                DeploymentHistory = DeploymentHistory.ToList()
+                DeploymentHistory = DeploymentHistory.ToList(),
+
+                // Change tracking metadata
+                ChangeMetadata = _changeMetadata
             };
 
             _progressService.SaveProgress(sessionState);
@@ -2386,6 +2484,13 @@ public partial class MainWindowViewModel : ViewModelBase
         HasUnsavedChanges = false;
         _rootDirectoryPath = null; // Reset root directory
 
+        // Reset git change detection state
+        _changeMetadata = null;
+        _branchConfigurations.Clear();
+        _selectedRepositories.Clear();
+        MetadataLoadedFromImport = false;
+        DetectChanges = true; // Reset to default
+
         // Reset workflow state
         CurrentStep = WorkflowStep.Import;
         ImportStepStatus = StepStatus.InProgress;
@@ -2413,7 +2518,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ErrorCount = 0;
         _lastExportFolder = string.Empty;
         _lastExportFileName = string.Empty;
-        
+
         // Force property change notifications for computed properties
         OnPropertyChanged(nameof(HasDeploymentValidationResult));
         OnPropertyChanged(nameof(DeploymentValidationBorderBrush));
@@ -2422,13 +2527,13 @@ public partial class MainWindowViewModel : ViewModelBase
 
         UpdateFileFilters();
         StatusMessage = "Ready. Click Import to load translation files.";
-        
+
         // Delete saved progress file LAST, after all state is cleared
         _progressService.ClearProgress();
     }
 
     [RelayCommand]
-    private void ConfirmImport()
+    private async Task ConfirmImport(Window window)
     {
         try
         {
@@ -2436,6 +2541,34 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 StatusMessage = "Please import at least one file before continuing.";
                 return;
+            }
+
+            // If change detection is enabled, IsDeveloper is true, we have selected repositories,
+            // AND we don't already have metadata loaded from import, show BranchComparisonDialog
+            if (DetectChanges && IsDeveloper && _selectedRepositories.Count > 0 && !MetadataLoadedFromImport)
+            {
+                var branchViewModel = new BranchComparisonViewModel(_selectedRepositories, _gitDiffService);
+                var branchDialog = new BranchComparisonDialog
+                {
+                    DataContext = branchViewModel
+                };
+
+                var result = await branchDialog.ShowDialog<Dictionary<string, (string, string)>?>(window);
+
+                if (result == null)
+                {
+                    // User cancelled - don't proceed to Step 2
+                    StatusMessage = "Branch configuration cancelled. Please configure branches to continue.";
+                    return;
+                }
+
+                // Store branch configurations for later use in Step 2
+                _branchConfigurations = result;
+                StatusMessage = $"Branch configuration complete. Configured {result.Count} repositor{(result.Count == 1 ? "y" : "ies")}.";
+            }
+            else if (MetadataLoadedFromImport)
+            {
+                StatusMessage = "Change metadata already loaded from import. Skipping branch configuration.";
             }
 
             ImportStepStatus = StepStatus.Completed;
@@ -2522,7 +2655,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     else
                     {
                         // In Suggest mode, check if value OR suggestion exists
-                        var hasEnglish = (k.LanguageValues.TryGetValue("en", out var enValue) && !string.IsNullOrWhiteSpace(enValue)) 
+                        var hasEnglish = (k.LanguageValues.TryGetValue("en", out var enValue) && !string.IsNullOrWhiteSpace(enValue))
                                         || k.SuggestedValues.ContainsKey("en");
                         var hasSpanish = (k.LanguageValues.TryGetValue("es", out var esValue) && !string.IsNullOrWhiteSpace(esValue))
                                         || k.SuggestedValues.ContainsKey("es");
@@ -2612,7 +2745,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (CurrentMode == EditMode.Deployment)
         {
             var keysWithMissingTranslations = allKeys.Where(k => k.HasMissingTranslations).ToList();
-            
+
             if (keysWithMissingTranslations.Count > 0)
             {
                 var continueWithExport = await ShowMissingTranslationsWarning(window, keysWithMissingTranslations.Count);
@@ -2657,21 +2790,21 @@ public partial class MainWindowViewModel : ViewModelBase
         // Determine zip file name based on root directory
         var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         string zipFileName;
-        
+
         if (!string.IsNullOrEmpty(_rootDirectoryPath))
         {
             // Use the root directory name in the zip filename
             var rootDirName = Path.GetFileName(_rootDirectoryPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-            
+
             // Strip any existing "_exported_YYYYMMDD_HHMMSS" suffix to avoid stacking
             // (e.g., "repos_exported_20260530_123456" becomes "repos")
             var cleanedName = System.Text.RegularExpressions.Regex.Replace(
-                rootDirName, 
-                @"_exported_\d{8}_\d{6}$", 
-                "", 
+                rootDirName,
+                @"_exported_\d{8}_\d{6}$",
+                "",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase
             );
-            
+
             zipFileName = $"{cleanedName}_exported_{timestamp}.zip";
         }
         else
@@ -2714,6 +2847,17 @@ public partial class MainWindowViewModel : ViewModelBase
                 _resxWriter.CopyAndUpdateFiles(resxKeys, _rootDirectoryPath, tempFolderPath, Username, CurrentMode);
             }
 
+            // Export metadata.json if change detection was performed
+            if (_changeMetadata != null && _changeMetadata.Repositories.Count > 0)
+            {
+                var metadataService = new MetadataExportService();
+                // Capture the latest review/approval state into the metadata before writing
+                metadataService.SyncApprovedKeys(_changeMetadata, _translationStore.GetAllKeys());
+                metadataService.WriteMetadataFile(tempFolderPath, _changeMetadata);
+                StatusMessage = $"Exported change metadata for {_changeMetadata.Repositories.Count} repositor{(_changeMetadata.Repositories.Count == 1 ? "y" : "ies")}.";
+                await Task.Delay(500); // Brief pause to show metadata message
+            }
+
             // Create ZIP file from the root temp folder (includes the named folder)
             if (File.Exists(zipFilePath))
             {
@@ -2743,11 +2887,11 @@ public partial class MainWindowViewModel : ViewModelBase
                 ErrorCount = 0;
                 ValidationMessage = string.Empty;
                 ShowDeployAgainButton = false;
-                
+
                 DeployStepStatus = StepStatus.InProgress;
                 CurrentStep = WorkflowStep.Deploy;
                 StatusMessage = "Export complete. Ready for deployment.";
-                
+
                 // Generate smart deployment root suggestion
                 var suggestion = _deploymentService.SuggestDeploymentRoot(_lastExportFolder, _lastExportFileName);
                 if (!string.IsNullOrEmpty(suggestion))
@@ -2968,7 +3112,7 @@ public partial class MainWindowViewModel : ViewModelBase
             ExportStepStatus = sessionState.ExportStepStatus;
             DeployStepStatus = sessionState.DeployStepStatus;
             CurrentMode = sessionState.CurrentMode;
-            
+
             // Restore deployment-related state
             if (!string.IsNullOrEmpty(sessionState.RootDirectoryPath))
             {
@@ -2987,27 +3131,30 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 _lastExportFileName = sessionState.LastExportFileName;
             }
-            
+
             // Restore deployment preview items
             DeploymentPreviewItems.Clear();
             foreach (var item in sessionState.DeploymentPreviewItems)
             {
                 DeploymentPreviewItems.Add(item);
             }
-            
+
             // Restore deployment validation and success state
             DeploymentValidationSuccess = sessionState.DeploymentValidationSuccess;
             DeploymentValidationMessage = sessionState.DeploymentValidationMessage;
             ShowDeploymentSuccess = sessionState.ShowDeploymentSuccess;
             DeploymentSuccessMessage = sessionState.DeploymentSuccessMessage;
-            
+
             // Restore deployment history
             DeploymentHistory.Clear();
             foreach (var entry in sessionState.DeploymentHistory)
             {
                 DeploymentHistory.Add(entry);
             }
-            
+
+            // Restore change tracking metadata
+            _changeMetadata = sessionState.ChangeMetadata;
+
             // Notify property changes for deployment-related computed properties
             if (DeploymentPreviewItems.Count > 0)
             {
@@ -3015,7 +3162,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 OnPropertyChanged(nameof(CanDeploy));
                 DeploymentPreviewSummary = $"{DeploymentPreviewItems.Count} file(s) ready for deployment";
             }
-            
+
             // Notify property changes for deployment validation and success
             OnPropertyChanged(nameof(HasDeploymentValidationResult));
             OnPropertyChanged(nameof(DeploymentValidationBorderBrush));
@@ -3037,7 +3184,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 statusMsg += $" Import directory: {Path.GetFileName(_rootDirectoryPath)}";
             }
             StatusMessage = statusMsg;
-            
+
             LanguagesChanged?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -3070,9 +3217,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
         // Group source files by base name, file type, AND directory path
         var fileGroups = _translationStore.SourceFiles
-            .GroupBy(sourceFile => new 
-            { 
-                BaseName = sourceFile.Name, 
+            .GroupBy(sourceFile => new
+            {
+                BaseName = sourceFile.Name,
                 FileType = sourceFile.Type,
                 DirectoryPath = sourceFile.DirectoryPath ?? string.Empty
             })
@@ -3091,7 +3238,7 @@ public partial class MainWindowViewModel : ViewModelBase
             // Note: Each SourceFile represents a base file, not individual language files
             // We need to check if the translation keys have both languages
             var keysForThisSource = _translationStore.GetAllKeys()
-                .Where(k => k.Source.Name == group.Key.BaseName && 
+                .Where(k => k.Source.Name == group.Key.BaseName &&
                            k.Source.Type == group.Key.FileType &&
                            k.Source.DirectoryPath == (string.IsNullOrEmpty(group.Key.DirectoryPath) ? null : group.Key.DirectoryPath))
                 .ToList();
@@ -3103,15 +3250,15 @@ public partial class MainWindowViewModel : ViewModelBase
 
                 pair.HasEnglishFile = hasEnglish;
                 pair.HasSpanishFile = hasSpanish;
-                
+
                 // Set file names for display
                 if (hasEnglish)
                 {
-                    pair.EnglishFileName = group.Key.FileType == FileType.Json 
+                    pair.EnglishFileName = group.Key.FileType == FileType.Json
                         ? $"{group.Key.BaseName}.en.json"
                         : $"{group.Key.BaseName}.resx";
                 }
-                
+
                 if (hasSpanish)
                 {
                     pair.SpanishFileName = group.Key.FileType == FileType.Json
@@ -3197,6 +3344,44 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
             }
 
+            // If change detection is enabled and we have branch configurations, run git diff
+            if (DetectChanges && _branchConfigurations.Count > 0)
+            {
+                if (window == null && Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+                {
+                    window = desktop.MainWindow;
+                }
+
+                var progressViewModel = new ProgressDialogViewModel
+                {
+                    Title = "Detecting Git Changes",
+                    StatusText = "Detecting git changes..."
+                };
+                var progressDialog = new ProgressDialog
+                {
+                    DataContext = progressViewModel
+                };
+
+                if (window != null)
+                {
+                    // Show the modal progress dialog while detection runs, then close it.
+                    var dialogTask = progressDialog.ShowDialog(window);
+                    try
+                    {
+                        await RunGitChangeDetection(progressViewModel);
+                    }
+                    finally
+                    {
+                        progressDialog.Close();
+                    }
+                    await dialogTask;
+                }
+                else
+                {
+                    await RunGitChangeDetection(progressViewModel);
+                }
+            }
+
             FileMappingStepStatus = StepStatus.Completed;
             ModeSelectionStepStatus = StepStatus.InProgress;
             CurrentStep = WorkflowStep.ModeSelection;
@@ -3209,6 +3394,230 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             StatusMessage = $"Error confirming file mapping: {ex.Message}";
             // Don't re-throw - keep the app running
+        }
+    }
+
+    private async Task RunGitChangeDetection(ProgressDialogViewModel progress)
+    {
+        var logFile = Path.Combine(Path.GetTempPath(), "isometrix-lingo-git-diff.log");
+
+        void Log(string message)
+        {
+            try
+            {
+                File.AppendAllText(logFile, $"[{DateTime.Now:HH:mm:ss.fff}] [MainVM] {message}\n");
+            }
+            catch { /* Ignore */ }
+        }
+
+        try
+        {
+            var totalChanges = 0;
+
+            // Initialize change metadata
+            _changeMetadata = new ChangeMetadata
+            {
+                ExtractionTimestamp = DateTime.UtcNow,
+                SchemaVersion = "1.0"
+            };
+
+            // ---- Phase 1: Gather work (fetch + discover which files actually changed) ----
+            progress.StatusText = "Detecting git changes...";
+
+            var workItems = new List<(string RepoPath, (string deployedBranch, string releaseBranch) Branches, SourceFile Source, List<TranslationKey> Keys, List<string> MatchingChangedFiles, RepositoryChangeInfo RepoChangeInfo)>();
+            var repoChangeInfos = new List<RepositoryChangeInfo>();
+
+            foreach (var (repoPath, branches) in _branchConfigurations)
+            {
+                var repoName = Path.GetFileName(repoPath);
+
+                // Fetch latest changes from remote
+                await _gitDiffService.FetchRepositoryAsync(repoPath);
+
+                // Get commit hashes for metadata (off the UI thread)
+                var deployedCommit = await Task.Run(() => _gitDiffService.GetCommitHash(repoPath, branches.deployedBranch) ?? string.Empty);
+                var releaseCommit = await Task.Run(() => _gitDiffService.GetCommitHash(repoPath, branches.releaseBranch) ?? string.Empty);
+
+                // Create repository change info
+                var repoChangeInfo = new RepositoryChangeInfo
+                {
+                    Path = repoPath,
+                    DeployedBranch = branches.deployedBranch,
+                    ReleaseBranch = branches.releaseBranch,
+                    DeployedCommit = deployedCommit,
+                    ReleaseCommit = releaseCommit
+                };
+                repoChangeInfos.Add(repoChangeInfo);
+
+                // Get all translation keys from this repository
+                var allKeys = _translationStore.GetAllKeys();
+                Log($"Total keys in store: {allKeys.Count}");
+
+                var repoFullPath = Path.GetFullPath(repoPath);
+                Log($"_rootDirectoryPath = '{_rootDirectoryPath ?? "NULL"}'");
+
+                // DirectoryPath is stored as relative path from _rootDirectoryPath
+                // We need to resolve it to absolute path before comparing with repoPath
+                var keysInRepo = allKeys
+                    .Where(k =>
+                    {
+                        if (k.Source?.DirectoryPath == null || _rootDirectoryPath == null)
+                            return false;
+
+                        var absoluteDirectoryPath = Path.GetFullPath(Path.Combine(_rootDirectoryPath, k.Source.DirectoryPath));
+                        return absoluteDirectoryPath.StartsWith(repoFullPath, StringComparison.OrdinalIgnoreCase);
+                    })
+                    .ToList();
+
+                Log($"Found {keysInRepo.Count} keys in repo '{repoName}'");
+
+                // Group keys by source file
+                var fileGroups = keysInRepo.GroupBy(k => k.Source).ToList();
+
+                // Get list of ALL changed files in this repo (off the UI thread)
+                var changedFilePaths = await Task.Run(() => _gitDiffService.GetChangedFiles(repoPath, branches.deployedBranch, branches.releaseBranch));
+                Log($"Git found {changedFilePaths.Count} changed files: {string.Join(", ", changedFilePaths)}");
+
+                foreach (var fileGroup in fileGroups)
+                {
+                    var source = fileGroup.Key;
+                    if (source == null || source.DirectoryPath == null)
+                        continue;
+
+                    // DirectoryPath is stored as "repo-name/IsoMetrix.../..." but git returns "IsoMetrix.../..."
+                    // Strip the repo name prefix from DirectoryPath before comparing
+                    var sourceDirectoryWithoutRepo = source.DirectoryPath;
+                    var firstSlash = source.DirectoryPath.IndexOf('/');
+                    if (firstSlash > 0 && firstSlash < source.DirectoryPath.Length - 1)
+                    {
+                        sourceDirectoryWithoutRepo = source.DirectoryPath.Substring(firstSlash + 1);
+                    }
+
+                    // Match changed files that start with our base path
+                    // e.g., "Forms" matches "Forms.en.json", "Forms.es.json", "Forms.resx", "Forms_es.resx", etc.
+                    var matchingChangedFiles = changedFilePaths
+                        .Where(path =>
+                        {
+                            var fileName = Path.GetFileName(path);
+                            var fileDir = Path.GetDirectoryName(path) ?? "";
+                            var baseName = source.Type == FileType.Json
+                                ? fileName.Split('.')[0]  // For JSON: Forms.es.json → Forms
+                                : fileName.Split('_')[0].Replace(".resx", ""); // For RESX: Forms_es.resx → Forms
+
+                            var nameMatch = baseName.Equals(source.Name, StringComparison.OrdinalIgnoreCase);
+                            var dirMatch = fileDir.Equals(sourceDirectoryWithoutRepo, StringComparison.OrdinalIgnoreCase);
+
+                            return nameMatch && dirMatch;
+                        })
+                        .ToList();
+
+                    if (matchingChangedFiles.Count == 0)
+                        continue;
+
+                    workItems.Add((repoPath, branches, source, fileGroup.ToList(), matchingChangedFiles, repoChangeInfo));
+                }
+            }
+
+            // ---- Phase 2: Process each changed file ----
+            foreach (var item in workItems)
+            {
+                var source = item.Source;
+
+                // Aggregate changes from all language files for this source
+                var aggregatedChanges = new Dictionary<string, ChangeType>();
+
+                foreach (var changedFilePath in item.MatchingChangedFiles)
+                {
+                    // Run git diff + parse off the UI thread so the spinner keeps animating
+                    var changes = await Task.Run(() =>
+                    {
+                        var diffContent = _gitDiffService.GetFileDiff(item.RepoPath, item.Branches.deployedBranch, item.Branches.releaseBranch, changedFilePath);
+                        if (string.IsNullOrEmpty(diffContent))
+                            return new Dictionary<string, ChangeType>();
+
+                        return source.Type == FileType.Json
+                            ? _gitDiffService.ParseJsonDiff(diffContent)
+                            : _gitDiffService.ParseResxDiff(diffContent);
+                    });
+
+                    // Merge changes into aggregated dictionary
+                    foreach (var kvp in changes)
+                    {
+                        aggregatedChanges[kvp.Key] = kvp.Value;
+                    }
+                }
+
+                // If no changes found for this source, skip
+                if (aggregatedChanges.Count == 0)
+                    continue;
+
+                // Create file change info for metadata.
+                // Store the path WITH the repo directory prefix (same as source.DirectoryPath)
+                // so it consistently matches the imported DirectoryPath on the PO side.
+                var fileChangeInfo = new FileChangeInfo
+                {
+                    Path = $"{source.DirectoryPath}/{Path.GetFileName(item.MatchingChangedFiles[0])}"
+                };
+
+                // Apply ChangeType to translation keys and collect metadata
+                foreach (var key in item.Keys)
+                {
+                    if (aggregatedChanges.TryGetValue(key.Key, out var changeType))
+                    {
+                        key.ChangeType = changeType;
+                        totalChanges++;
+
+                        if (changeType == ChangeType.Modified)
+                        {
+                            fileChangeInfo.ModifiedKeys.Add(key.Key);
+                        }
+                        else if (changeType == ChangeType.Added)
+                        {
+                            fileChangeInfo.AddedKeys.Add(key.Key);
+                        }
+                    }
+                }
+
+                // Only add file to metadata if it has changes
+                if (fileChangeInfo.ModifiedKeys.Count > 0 || fileChangeInfo.AddedKeys.Count > 0)
+                {
+                    item.RepoChangeInfo.Files.Add(fileChangeInfo);
+
+                    // Update file pair badge counts
+                    var filePair = FilePairs.FirstOrDefault(fp =>
+                        fp.BaseName == source.Name &&
+                        fp.FileType == source.Type &&
+                        fp.DirectoryPath == source.DirectoryPath);
+
+                    if (filePair != null)
+                    {
+                        filePair.ModifiedCount += fileChangeInfo.ModifiedKeys.Count;
+                        filePair.AddedCount += fileChangeInfo.AddedKeys.Count;
+                    }
+                }
+            }
+
+            // Only add repos that actually have file changes to metadata
+            foreach (var repoChangeInfo in repoChangeInfos)
+            {
+                if (repoChangeInfo.Files.Count > 0)
+                {
+                    _changeMetadata.Repositories.Add(repoChangeInfo);
+                }
+            }
+
+            StatusMessage = totalChanges > 0
+                ? $"Change detection complete. Found {totalChanges} modified or added translation key{(totalChanges == 1 ? "" : "s")}."
+                : "Change detection complete. No changes detected.";
+
+            // CRITICAL: Refresh the filtered view to show updated ChangeType values
+            // This ensures that if the "Only Modified/Added" filter is active,
+            // the grid immediately shows the newly detected changes
+            _translationStore.RefreshUI();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error during change detection: {ex.Message}";
         }
     }
 
@@ -3232,7 +3641,7 @@ public partial class MainWindowViewModel : ViewModelBase
             ExportStepStatus = StepStatus.NotStarted; // Skipped
             DeployStepStatus = StepStatus.InProgress;
             CurrentStep = WorkflowStep.Deploy;
-            
+
             // Set the last export info from the imported directory
             if (!string.IsNullOrEmpty(_rootDirectoryPath))
             {
@@ -3243,9 +3652,9 @@ public partial class MainWindowViewModel : ViewModelBase
                     _lastExportFileName = Path.GetFileName(_rootDirectoryPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)) + ".zip";
                 }
             }
-            
+
             StatusMessage = "Deployment mode selected. Ready to deploy translations.";
-            
+
             // Generate smart deployment root suggestion
             if (!string.IsNullOrEmpty(_lastExportFolder) && !string.IsNullOrEmpty(_lastExportFileName))
             {
@@ -3262,7 +3671,7 @@ public partial class MainWindowViewModel : ViewModelBase
             // Edit or Suggest mode: proceed to Edit step
             EditStepStatus = StepStatus.InProgress;
             CurrentStep = WorkflowStep.Edit;
-            
+
             var modeText = CurrentMode == EditMode.Edit ? "Edit" : "Suggest";
             StatusMessage = $"{modeText} mode selected. You can now {modeText.ToLower()} translations.";
         }
@@ -3291,7 +3700,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         // Get all keys from the existing file (must match base name, type, AND directory path)
         var existingKeys = _translationStore.GetAllKeys()
-            .Where(k => k.Source.Name == pair.BaseName && 
+            .Where(k => k.Source.Name == pair.BaseName &&
                        k.Source.Type == pair.FileType &&
                        k.Source.DirectoryPath == pair.DirectoryPath)
             .ToList();
@@ -3486,16 +3895,16 @@ public partial class MainWindowViewModel : ViewModelBase
     private void AcceptSuggestion((TranslationKey key, string language) parameters)
     {
         var (key, language) = parameters;
-        
+
         // Use the TranslationKey's method to accept the suggestion (handles all state updates and notifications)
         var acceptedValue = key.AcceptSuggestionForLanguage(language);
-        
+
         if (acceptedValue == null)
             return;
-        
+
         // Mark as having unsaved changes
         HasUnsavedChanges = true;
-        
+
         StatusMessage = $"Accepted suggestion for '{key.Key}' in {LanguageHelper.GetLanguageName(language)}.";
     }
 
@@ -3503,16 +3912,16 @@ public partial class MainWindowViewModel : ViewModelBase
     private void RejectSuggestion((TranslationKey key, string language) parameters)
     {
         var (key, language) = parameters;
-        
+
         // Use the TranslationKey's method to reject the suggestion (handles all state updates and notifications)
         var wasRejected = key.RejectSuggestionForLanguage(language);
-        
+
         if (!wasRejected)
             return;
-        
+
         // Mark as having unsaved changes
         HasUnsavedChanges = true;
-        
+
         StatusMessage = $"Rejected suggestion for '{key.Key}' in {LanguageHelper.GetLanguageName(language)}.";
     }
 
@@ -3573,7 +3982,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _settingsService.Save(settings);
 
         StatusMessage = $"Deployment root set to: {DeploymentRootPath}";
-        
+
         // Perform validation automatically
         await PerformDeploymentValidation();
     }
@@ -3595,14 +4004,14 @@ public partial class MainWindowViewModel : ViewModelBase
         ShowDeploymentSuccess = false;
 
         DeploymentRootPath = SuggestedDeploymentRoot;
-        
+
         // Save to settings
         var settings = _settingsService.Load() ?? new UserSettings { Username = Username };
         settings.LastDeploymentRoot = DeploymentRootPath;
         _settingsService.Save(settings);
 
         StatusMessage = $"Using suggested deployment root: {DeploymentRootPath}";
-        
+
         // Perform validation automatically
         await PerformDeploymentValidation();
     }
@@ -3632,7 +4041,7 @@ public partial class MainWindowViewModel : ViewModelBase
             DeploymentSuccessMessage = $"✓ Deployment successful! {DeploymentPreviewItems.Count} file(s) deployed.";
             ShowDeploymentSuccess = true;
             ShowDeployAgainButton = true;
-            
+
             // Add to deployment history (keep only last 5)
             DeploymentHistory.Add(new DeploymentHistoryEntry
             {
@@ -3641,16 +4050,16 @@ public partial class MainWindowViewModel : ViewModelBase
                 Success = true,
                 DeploymentRoot = DeploymentRootPath
             });
-            
+
             // Keep only last 5 entries
             while (DeploymentHistory.Count > 5)
             {
                 DeploymentHistory.RemoveAt(0);
             }
-            
+
             // Save progress after successful deployment (without showing message)
             SaveProgress(showMessage: false);
-            
+
             // Show "Progress saved" message for 1 second, then switch to deployment message
             StatusMessage = "Progress saved successfully.";
             _ = Task.Run(async () =>
@@ -3672,7 +4081,7 @@ public partial class MainWindowViewModel : ViewModelBase
             DeploymentValidationSuccess = false;
             DeploymentValidationMessage = $"❌ Deployment failed: {deploymentErrors.Count} error(s) detected. All changes rolled back.";
             StatusMessage = $"Deployment failed with {deploymentErrors.Count} error(s). No files were changed.";
-            
+
             // Add to deployment history (keep only last 5)
             DeploymentHistory.Add(new DeploymentHistoryEntry
             {
@@ -3681,13 +4090,13 @@ public partial class MainWindowViewModel : ViewModelBase
                 Success = false,
                 DeploymentRoot = DeploymentRootPath
             });
-            
+
             // Keep only last 5 entries
             while (DeploymentHistory.Count > 5)
             {
                 DeploymentHistory.RemoveAt(0);
             }
-            
+
             // Save progress even on failure (to persist error state)
             SaveProgress(showMessage: false);
         }
@@ -3829,7 +4238,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         // Generate preview
         var previewItems = _deploymentService.GetDeploymentPreviewFromDirectory(_rootDirectoryPath, DeploymentRootPath);
-        
+
         DeploymentPreviewItems.Clear();
         foreach (var item in previewItems)
         {
@@ -3854,7 +4263,7 @@ public partial class MainWindowViewModel : ViewModelBase
         // Check if any suggestions exist - must be resolved before deployment
         var allKeys = _translationStore.GetAllKeys();
         var keysWithSuggestions = allKeys.Where(k => k.SuggestedValues.Any()).ToList();
-        
+
         if (keysWithSuggestions.Count > 0)
         {
             // Populate ImportErrors with details about suggestions
@@ -3870,7 +4279,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     Guidance = "Accept or reject the suggestion before deploying."
                 });
             }
-            
+
             HasErrors = true;
             ErrorCount = keysWithSuggestions.Count;
             DeploymentValidationSuccess = false;
@@ -3878,7 +4287,7 @@ public partial class MainWindowViewModel : ViewModelBase
             StatusMessage = $"Deployment blocked: {keysWithSuggestions.Count} unresolved suggestion(s).";
             return;
         }
-        
+
         // Validate that we have the source directory
         if (string.IsNullOrEmpty(_rootDirectoryPath) || !Directory.Exists(_rootDirectoryPath))
         {
@@ -3899,7 +4308,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         // Step 1: Generate preview
         var previewItems = _deploymentService.GetDeploymentPreviewFromDirectory(_rootDirectoryPath, DeploymentRootPath);
-        
+
         DeploymentPreviewItems.Clear();
         foreach (var item in previewItems)
         {

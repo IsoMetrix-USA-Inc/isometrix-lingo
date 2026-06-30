@@ -34,6 +34,15 @@ public partial class TranslationKey : ObservableObject
     [ObservableProperty]
     private Dictionary<string, Suggestion> _suggestedValues = new();
 
+    [ObservableProperty]
+    private ChangeType _changeType = ChangeType.None;
+
+    /// <summary>
+    /// Indicates the user has reviewed and signed off this modified/added key.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isApproved;
+
     /// <summary>
     /// Check if a specific language value has been modified
     /// </summary>
@@ -62,11 +71,11 @@ public partial class TranslationKey : ObservableObject
     public void UpdateMissingTranslationsStatus()
     {
         // A translation is OK if it has either a value OR a suggestion
-        var hasEnglish = (LanguageValues.TryGetValue("en", out var enValue) && !string.IsNullOrWhiteSpace(enValue)) 
+        var hasEnglish = (LanguageValues.TryGetValue("en", out var enValue) && !string.IsNullOrWhiteSpace(enValue))
                         || SuggestedValues.ContainsKey("en");
         var hasSpanish = (LanguageValues.TryGetValue("es", out var esValue) && !string.IsNullOrWhiteSpace(esValue))
                         || SuggestedValues.ContainsKey("es");
-        
+
         HasMissingTranslations = !hasEnglish || !hasSpanish;
     }
 
@@ -96,24 +105,24 @@ public partial class TranslationKey : ObservableObject
 
         // Apply the suggestion to the actual value
         LanguageValues[language] = suggestion.Value;
-        
+
         // Remove the suggestion
         SuggestedValues.Remove(language);
-        
+
         // Mark as modified
         ModifiedLanguages.Add(language);
         IsModified = true;
-        
+
         // Update missing translations status
         UpdateMissingTranslationsStatus();
-        
+
         // Trigger property change notifications to refresh UI bindings
         OnPropertyChanged(nameof(SuggestedValues));
         OnPropertyChanged(nameof(HasAnySuggestions));
         OnPropertyChanged(nameof(LanguageValues));
         OnPropertyChanged(nameof(ModifiedLanguages));
         OnPropertyChanged(nameof(OriginalValues));
-        
+
         return suggestion.Value;
     }
 
@@ -128,14 +137,14 @@ public partial class TranslationKey : ObservableObject
 
         // Remove the suggestion
         SuggestedValues.Remove(language);
-        
+
         // Update missing translations status
         UpdateMissingTranslationsStatus();
-        
+
         // Trigger property change notifications to refresh UI bindings
         OnPropertyChanged(nameof(SuggestedValues));
         OnPropertyChanged(nameof(HasAnySuggestions));
-        
+
         return true;
     }
 
@@ -159,10 +168,10 @@ public partial class TranslationKey : ObservableObject
             // Remove suggestion if value is empty/whitespace
             SuggestedValues.Remove(language);
         }
-        
+
         // Update missing translations status
         UpdateMissingTranslationsStatus();
-        
+
         // Trigger property change notifications to refresh UI bindings
         OnPropertyChanged(nameof(SuggestedValues));
         OnPropertyChanged(nameof(HasAnySuggestions));

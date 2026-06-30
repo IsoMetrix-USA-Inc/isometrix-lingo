@@ -1,0 +1,57 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:IsometrixLingo.ViewModels"
+        x:Class="IsometrixLingo.Views.ProgressDialog"
+        x:DataType="vm:ProgressDialogViewModel"
+        Title="{Binding Title}"
+        Width="380"
+        Height="180"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False">
+
+    <Window.Styles>
+        <Style Selector="Ellipse.spinner">
+            <Style.Animations>
+                <Animation Duration="0:0:1" IterationCount="INFINITE" Easing="LinearEasing">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="RotateTransform.Angle" Value="0"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="RotateTransform.Angle" Value="360"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+    </Window.Styles>
+
+    <Border Background="{DynamicResource ThemeBackgroundBrush}"
+            Padding="28">
+        <StackPanel HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="20">
+
+            <!-- Spinner -->
+            <Ellipse Classes="spinner"
+                     Width="44"
+                     Height="44"
+                     Stroke="#3498DB"
+                     StrokeThickness="4"
+                     StrokeDashArray="3.0,1.2"
+                     StrokeLineCap="Round"
+                     HorizontalAlignment="Center">
+                <Ellipse.RenderTransform>
+                    <RotateTransform/>
+                </Ellipse.RenderTransform>
+            </Ellipse>
+
+            <!-- Message -->
+            <TextBlock Text="{Binding StatusText}"
+                       FontSize="15"
+                       FontWeight="SemiBold"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+    </Border>
+</Window>

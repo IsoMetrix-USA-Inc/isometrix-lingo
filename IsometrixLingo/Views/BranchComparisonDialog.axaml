@@ -1,0 +1,169 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:IsometrixLingo.ViewModels"
+        xmlns:converters="using:IsometrixLingo.Converters"
+        x:Class="IsometrixLingo.Views.BranchComparisonDialog"
+        x:DataType="vm:BranchComparisonViewModel"
+        Title="Configure Git Branch Comparison"
+        Width="600"
+        Height="540"
+        MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True">
+
+    <Window.Resources>
+        <converters:BranchValidationBorderConverter x:Key="BranchValidationBorderConverter"/>
+    </Window.Resources>
+
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,18">
+            <TextBlock Text="Git Branch Comparison Configuration"
+                       FontSize="18"
+                       FontWeight="Bold"/>
+            <TextBlock Text="Specify the base and target branches to detect changes between releases."
+                       Foreground="#666"
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- Repository Info -->
+        <Border Grid.Row="1"
+                Background="#F0F0F0"
+                BorderBrush="#CCC"
+                BorderThickness="1"
+                CornerRadius="4"
+                Padding="15"
+                Margin="0,0,0,18">
+            <StackPanel Spacing="5">
+                <TextBlock FontWeight="SemiBold" Foreground="#212121">
+                    <Run Text="Repository"/>
+                    <Run Text="{Binding CurrentRepositoryNumber}"/>
+                    <Run Text="of"/>
+                    <Run Text="{Binding TotalRepositories}"/>
+                </TextBlock>
+                <TextBlock Text="{Binding CurrentRepositoryName}"
+                           FontSize="14"
+                           FontWeight="Bold"
+                           Foreground="#212121"/>
+                <TextBlock Text="{Binding CurrentRepositoryPath}"
+                           FontSize="11"
+                           Foreground="#666"
+                           TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Branch Configuration -->
+        <StackPanel Grid.Row="2" Spacing="18">
+            <!-- Deployed Branch -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="Deployed Branch (current production)"
+                           FontWeight="SemiBold"/>
+                <TextBox Text="{Binding DeployedBranch}"
+                         PlaceholderText="e.g., origin/main, main, master"
+                         BorderThickness="2">
+                    <TextBox.BorderBrush>
+                        <MultiBinding Converter="{StaticResource BranchValidationBorderConverter}">
+                            <Binding Path="IsDeployedBranchValid"/>
+                            <Binding Path="HasDeployedBranchError"/>
+                        </MultiBinding>
+                    </TextBox.BorderBrush>
+                </TextBox>
+                <TextBlock Text="Validating…"
+                           FontSize="11"
+                           FontStyle="Italic"
+                           Foreground="#888"
+                           IsVisible="{Binding IsDeployedBranchValidating}"/>
+                <TextBlock Text="✓ Branch found"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Foreground="#2E7D32"
+                           IsVisible="{Binding IsDeployedBranchValid}"/>
+                <TextBlock Text="{Binding DeployedBranchError}"
+                           FontSize="12"
+                           Foreground="#C62828"
+                           TextWrapping="Wrap"
+                           IsVisible="{Binding HasDeployedBranchError}"/>
+                <TextBlock Text="The branch currently deployed in production (remote or local)."
+                           FontSize="11"
+                           Foreground="#666"
+                           IsVisible="{Binding !HasDeployedBranchError}"/>
+            </StackPanel>
+
+            <!-- Release Branch -->
+            <StackPanel Spacing="4">
+                <TextBlock Text="Release Branch (new release candidate)"
+                           FontWeight="SemiBold"/>
+                <TextBox Text="{Binding ReleaseBranch}"
+                         PlaceholderText="e.g., origin/release/v5.0.0, release/v5.0.0"
+                         BorderThickness="2">
+                    <TextBox.BorderBrush>
+                        <MultiBinding Converter="{StaticResource BranchValidationBorderConverter}">
+                            <Binding Path="IsReleaseBranchValid"/>
+                            <Binding Path="HasReleaseBranchError"/>
+                        </MultiBinding>
+                    </TextBox.BorderBrush>
+                </TextBox>
+                <TextBlock Text="Validating…"
+                           FontSize="11"
+                           FontStyle="Italic"
+                           Foreground="#888"
+                           IsVisible="{Binding IsReleaseBranchValidating}"/>
+                <TextBlock Text="✓ Branch found"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Foreground="#2E7D32"
+                           IsVisible="{Binding IsReleaseBranchValid}"/>
+                <TextBlock Text="{Binding ReleaseBranchError}"
+                           FontSize="12"
+                           Foreground="#C62828"
+                           TextWrapping="Wrap"
+                           IsVisible="{Binding HasReleaseBranchError}"/>
+                <TextBlock Text="The branch containing changes for the new release (remote or local)."
+                           FontSize="11"
+                           Foreground="#666"
+                           IsVisible="{Binding !HasReleaseBranchError}"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Action Buttons: two stacked pairs, bottom-right -->
+        <StackPanel Grid.Row="4"
+                    HorizontalAlignment="Right"
+                    Spacing="10"
+                    Margin="0,18,0,0">
+            <!-- Pair 1: navigation -->
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Spacing="10">
+                <Button Content="← Previous"
+                        Command="{Binding NavigatePreviousCommand}"
+                        IsEnabled="{Binding CanNavigatePrevious}"
+                        Width="140"/>
+                <Button Content="Next →"
+                        Command="{Binding NavigateNextCommand}"
+                        IsEnabled="{Binding CanNavigateNext}"
+                        Width="140"/>
+            </StackPanel>
+            <!-- Pair 2: cancel / confirm -->
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Spacing="10">
+                <Button Content="Cancel"
+                        Click="Cancel_Click"
+                        Width="140"/>
+                <Button Content="Confirm"
+                        Click="Confirm_Click"
+                        IsEnabled="{Binding CanConfirm}"
+                        Width="140"
+                        Classes="accent"/>
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Window>

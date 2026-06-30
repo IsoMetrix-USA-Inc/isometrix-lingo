@@ -19,6 +19,8 @@ public class TranslationStore
     private string _currentSearchTerm = string.Empty;
     private bool _showOnlyMissingTranslations = false;
     private bool _showOnlyWithSuggestions = false;
+    private bool _showOnlyModifiedOrAdded = false;
+    private bool _includeReviewedKeys = false;
     private bool _hasUnsavedChanges = false;
 
     public ObservableCollection<TranslationKey> FilteredKeys => _filteredKeys;
@@ -33,9 +35,9 @@ public class TranslationStore
         foreach (var key in keys)
         {
             // Check if this key already exists (same key name and source file including directory)
-            var existingKey = _allKeys.FirstOrDefault(k => 
-                k.Key == key.Key && 
-                k.Source.Name == key.Source.Name && 
+            var existingKey = _allKeys.FirstOrDefault(k =>
+                k.Key == key.Key &&
+                k.Source.Name == key.Source.Name &&
                 k.Source.Type == key.Source.Type &&
                 k.Source.DirectoryPath == key.Source.DirectoryPath);
 
@@ -146,6 +148,18 @@ public class TranslationStore
         ApplyFilters();
     }
 
+    public void FilterByChangeType(bool showOnlyModifiedOrAdded)
+    {
+        _showOnlyModifiedOrAdded = showOnlyModifiedOrAdded;
+        ApplyFilters();
+    }
+
+    public void FilterIncludeReviewed(bool includeReviewedKeys)
+    {
+        _includeReviewedKeys = includeReviewedKeys;
+        ApplyFilters();
+    }
+
     private void ApplyFilters()
     {
         _filteredKeys.Clear();
@@ -160,7 +174,7 @@ public class TranslationStore
         else
         {
             keysToShow = _allKeys.Where(k => _currentFileFilter.Any(sf =>
-                sf.Name == k.Source.Name && 
+                sf.Name == k.Source.Name &&
                 sf.Type == k.Source.Type &&
                 sf.DirectoryPath == k.Source.DirectoryPath));
         }
@@ -186,6 +200,14 @@ public class TranslationStore
         if (_showOnlyWithSuggestions)
         {
             keysToShow = keysToShow.Where(k => k.HasAnySuggestions);
+        }
+
+        // Apply change type filter if enabled
+        if (_showOnlyModifiedOrAdded)
+        {
+            // Show only modified/added keys, and by default hide ones already reviewed/approved
+            keysToShow = keysToShow.Where(k => k.ChangeType != ChangeType.None
+                && (_includeReviewedKeys || !k.IsApproved));
         }
 
         foreach (var key in keysToShow)

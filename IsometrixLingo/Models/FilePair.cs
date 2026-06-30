@@ -36,7 +36,15 @@ public partial class FilePair : ObservableObject
     [ObservableProperty]
     private bool _createMissingSpanish;
 
+    [ObservableProperty]
+    private int _modifiedCount;
+
+    [ObservableProperty]
+    private int _addedCount;
+
     public bool IsMissingFile => !HasEnglishFile || !HasSpanishFile;
+
+    public bool HasChanges => ModifiedCount > 0 || AddedCount > 0;
 
     public string DisplayName => $"{BaseName} ({FileType})";
 
@@ -59,7 +67,7 @@ public partial class FilePair : ObservableObject
             // Show first part, "...", and last 2 parts
             var firstPart = parts[0];
             var lastParts = string.Join("/", parts.Skip(parts.Length - 2));
-            var truncated = $"{firstPart}/.../{ lastParts}";
+            var truncated = $"{firstPart}/.../{lastParts}";
 
             // If still too long, just use last part
             if (truncated.Length > maxLength)
