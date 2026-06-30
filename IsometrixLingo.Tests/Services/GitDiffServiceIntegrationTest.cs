@@ -101,3 +101,125 @@ public class GitDiffServiceIntegrationTest
         Console.WriteLine($"Release ({releaseBranch}): {releaseHash}");
     }
 }
+
+public class GitDiffServiceReorderTest
+{
+    [Fact]
+    public void ParseJsonDiff_ReorderedKey_SameValue_ShouldNotBeDetectedAsChange()
+    {
+        // Arrange - a key moved position: removed from one spot, added in another, value unchanged
+        var service = new GitDiffService();
+        var diff = string.Join("\n", new[]
+        {
+            "@@ -1,4 +1,4 @@",
+            " {",
+            "-  \"greeting\": \"Hello\",",
+            "   \"farewell\": \"Goodbye\",",
+            "+  \"greeting\": \"Hello\",",
+            "   \"thanks\": \"Thanks\"",
+            " }"
+        });
+
+        // Act
+        var changes = service.ParseJsonDiff(diff);
+
+        // Assert - pure reorder must NOT be flagged
+        Assert.False(changes.ContainsKey("greeting"), "Reordered key with unchanged value must not be a change");
+        Assert.Empty(changes);
+    }
+
+    [Fact]
+    public void ParseJsonDiff_ChangedValue_ShouldBeModified()
+    {
+        // Arrange
+        var service = new GitDiffService();
+        var diff = string.Join("\n", new[]
+        {
+            "@@ -1,3 +1,3 @@",
+            " {",
+            "-  \"greeting\": \"Hello\",",
+            "+  \"greeting\": \"Hi\",",
+            " }"
+        });
+
+        // Act
+        var changes = service.ParseJsonDiff(diff);
+
+        // Assert
+        Assert.True(changes.ContainsKey("greeting"));
+        Assert.Equal(ChangeType.Modified, changes["greeting"]);
+    }
+
+    [Fact]
+    public void ParseJsonDiff_NewKey_ShouldBeAdded()
+    {
+        // Arrange
+        var service = new GitDiffService();
+        var diff = string.Join("\n", new[]
+        {
+            "@@ -1,2 +1,3 @@",
+            " {",
+            "+  \"welcome\": \"Welcome\",",
+            "   \"greeting\": \"Hello\"",
+            " }"
+        });
+
+        // Act
+        var changes = service.ParseJsonDiff(diff);
+
+        // Assert
+        Assert.True(changes.ContainsKey("welcome"));
+        Assert.Equal(ChangeType.Added, changes["welcome"]);
+    }
+
+    [Fact]
+    public void ParseResxDiff_ReorderedDataElement_SameValue_ShouldNotBeDetectedAsChange()
+    {
+        // Arrange - a <data> block moved position, value unchanged
+        var service = new GitDiffService();
+        var diff = string.Join("\n", new[]
+        {
+            "@@ -1,8 +1,8 @@",
+            " <root>",
+            "-  <data name=\"Greeting\" xml:space=\"preserve\">",
+            "-    <value>Hello</value>",
+            "-  </data>",
+            "   <data name=\"Farewell\" xml:space=\"preserve\">",
+            "     <value>Goodbye</value>",
+            "   </data>",
+            "+  <data name=\"Greeting\" xml:space=\"preserve\">",
+            "+    <value>Hello</value>",
+            "+  </data>",
+            " </root>"
+        });
+
+        // Act
+        var changes = service.ParseResxDiff(diff);
+
+        // Assert
+        Assert.False(changes.ContainsKey("Greeting"), "Reordered RESX data element with unchanged value must not be a change");
+        Assert.Empty(changes);
+    }
+
+    [Fact]
+    public void ParseResxDiff_ChangedValue_ShouldBeModified()
+    {
+        // Arrange
+        var service = new GitDiffService();
+        var diff = string.Join("\n", new[]
+        {
+            "@@ -1,4 +1,4 @@",
+            "   <data name=\"Greeting\" xml:space=\"preserve\">",
+            "-    <value>Hello</value>",
+            "+    <value>Hi</value>",
+            "   </data>"
+        });
+
+        // Act
+        var changes = service.ParseResxDiff(diff);
+
+        // Assert
+        Assert.True(changes.ContainsKey("Greeting"));
+        Assert.Equal(ChangeType.Modified, changes["Greeting"]);
+    }
+}

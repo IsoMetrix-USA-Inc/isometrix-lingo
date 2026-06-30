@@ -239,8 +239,9 @@ public class GitDiffService
         // Format: "key": "value"
 
         var lines = diffContent.Split('\n');
-        var addedKeys = new HashSet<string>();
-        var removedKeys = new HashSet<string>();
+        // Map key -> value signature for each side so we can tell a real change from a reorder
+        var addedValues = new Dictionary<string, string>();
+        var removedValues = new Dictionary<string, string>();
 
         foreach (var line in lines)
         {
@@ -248,30 +249,37 @@ public class GitDiffService
 
             if (trimmed.StartsWith("+") && !trimmed.StartsWith("+++"))
             {
-                var key = ExtractKeyFromJsonLine(trimmed.Substring(1).Trim());
+                var (key, value) = ExtractKeyValueFromJsonLine(trimmed.Substring(1).Trim());
                 if (!string.IsNullOrEmpty(key))
                 {
                     Log($"[ParseJsonDiff] Found ADDED line: {trimmed.Substring(0, Math.Min(80, trimmed.Length))} → key: {key}");
-                    addedKeys.Add(key);
+                    addedValues[key!] = value;
                 }
             }
             else if (trimmed.StartsWith("-") && !trimmed.StartsWith("---"))
             {
-                var key = ExtractKeyFromJsonLine(trimmed.Substring(1).Trim());
+                var (key, value) = ExtractKeyValueFromJsonLine(trimmed.Substring(1).Trim());
                 if (!string.IsNullOrEmpty(key))
                 {
                     Log($"[ParseJsonDiff] Found REMOVED line: {trimmed.Substring(0, Math.Min(80, trimmed.Length))} → key: {key}");
-                    removedKeys.Add(key);
+                    removedValues[key!] = value;
                 }
             }
         }
 
-        // Keys in both sets = Modified
+        // Keys in both sets with the SAME value = reorder (skip)
+        // Keys in both sets with a DIFFERENT value = Modified
         // Keys only in added = Added
-        foreach (var key in addedKeys)
+        foreach (var (key, addedValue) in addedValues)
         {
-            if (removedKeys.Contains(key))
+            if (removedValues.TryGetValue(key, out var removedValue))
             {
+                if (removedValue == addedValue)
+                {
+                    Log($"[ParseJsonDiff] → SKIPPED (reorder, value unchanged): {key}");
+                    continue;
+                }
+
                 changes[key] = ChangeType.Modified;
                 Log($"[ParseJsonDiff] → MODIFIED: {key}");
             }
@@ -309,8 +317,9 @@ public class GitDiffService
         // Then when we see +/- value lines, attribute them to that key
 
         var lines = diffContent.Split('\n');
-        var addedKeys = new HashSet<string>();
-        var removedKeys = new HashSet<string>();
+        // Map key -> value signature for each side so we can tell a real change from a reorder
+        var addedValues = new Dictionary<string, string>();
+        var removedValues = new Dictionary<string, string>();
         string? currentKey = null;
 
         for (int i = 0; i < lines.Length; i++)
@@ -331,20 +340,25 @@ public class GitDiffService
             // Look for added <value> lines
             else if (trimmed.StartsWith("+") && !trimmed.StartsWith("+++"))
             {
+                var content = trimmed.Substring(1).Trim();
+
                 // Check if it's a <value> line
-                if (trimmed.Contains("<value>") && currentKey != null)
+                if (content.Contains("<value>") && currentKey != null)
                 {
                     Log($"[ParseResxDiff] Found ADDED value for key: {currentKey}");
-                    addedKeys.Add(currentKey);
+                    AppendSignature(addedValues, currentKey, ExtractResxValueSignature(content));
                 }
                 // Or check if it's a <data name> line itself (new key added)
                 else
                 {
-                    var key = ExtractKeyFromResxLine(trimmed.Substring(1).Trim());
+                    var key = ExtractKeyFromResxLine(content);
                     if (!string.IsNullOrEmpty(key))
                     {
                         Log($"[ParseResxDiff] Found ADDED data element: {key}");
-                        addedKeys.Add(key);
+                        if (!addedValues.ContainsKey(key!))
+                        {
+                            addedValues[key!] = string.Empty;
+                        }
                         currentKey = key;
                     }
                 }
@@ -352,32 +366,44 @@ public class GitDiffService
             // Look for removed <value> lines
             else if (trimmed.StartsWith("-") && !trimmed.StartsWith("---"))
             {
+                var content = trimmed.Substring(1).Trim();
+
                 // Check if it's a <value> line
-                if (trimmed.Contains("<value>") && currentKey != null)
+                if (content.Contains("<value>") && currentKey != null)
                 {
                     Log($"[ParseResxDiff] Found REMOVED value for key: {currentKey}");
-                    removedKeys.Add(currentKey);
+                    AppendSignature(removedValues, currentKey, ExtractResxValueSignature(content));
                 }
                 // Or check if it's a <data name> line itself (key removed)
                 else
                 {
-                    var key = ExtractKeyFromResxLine(trimmed.Substring(1).Trim());
+                    var key = ExtractKeyFromResxLine(content);
                     if (!string.IsNullOrEmpty(key))
                     {
                         Log($"[ParseResxDiff] Found REMOVED data element: {key}");
-                        removedKeys.Add(key);
+                        if (!removedValues.ContainsKey(key!))
+                        {
+                            removedValues[key!] = string.Empty;
+                        }
                         currentKey = key;
                     }
                 }
             }
         }
 
-        // Keys in both sets = Modified
+        // Keys in both sets with the SAME value = reorder (skip)
+        // Keys in both sets with a DIFFERENT value = Modified
         // Keys only in added = Added
-        foreach (var key in addedKeys)
+        foreach (var (key, addedValue) in addedValues)
         {
-            if (removedKeys.Contains(key))
+            if (removedValues.TryGetValue(key, out var removedValue))
             {
+                if (removedValue == addedValue)
+                {
+                    Log($"[ParseResxDiff] → SKIPPED (reorder, value unchanged): {key}");
+                    continue;
+                }
+
                 changes[key] = ChangeType.Modified;
                 Log($"[ParseResxDiff] → MODIFIED: {key}");
             }
@@ -392,11 +418,36 @@ public class GitDiffService
         return changes;
     }
 
-    private string? ExtractKeyFromJsonLine(string line)
+    private static void AppendSignature(Dictionary<string, string> signatures, string key, string value)
     {
-        // Extract key from JSON line: "key": "value"
-        var match = System.Text.RegularExpressions.Regex.Match(line, @"""([^""]+)""\s*:");
-        return match.Success ? match.Groups[1].Value : null;
+        signatures[key] = signatures.TryGetValue(key, out var existing) && existing.Length > 0
+            ? existing + "\n" + value
+            : value;
+    }
+
+    private static string ExtractResxValueSignature(string line)
+    {
+        // Capture the inner text of <value>...</value> when present on a single line,
+        // otherwise fall back to the whole line content (handles multi-line values).
+        var match = System.Text.RegularExpressions.Regex.Match(line, @"<value>(.*?)</value>");
+        return match.Success ? match.Groups[1].Value : line;
+    }
+
+    private (string? Key, string Value) ExtractKeyValueFromJsonLine(string line)
+    {
+        // Extract key and value from a JSON line: "key": "value"
+        // The value signature is everything after the first colon (trailing comma stripped),
+        // which lets us tell a real value change apart from a pure reorder.
+        var keyMatch = System.Text.RegularExpressions.Regex.Match(line, @"""([^""]+)""\s*:");
+        if (!keyMatch.Success)
+        {
+            return (null, string.Empty);
+        }
+
+        var key = keyMatch.Groups[1].Value;
+        var afterColon = line.Substring(keyMatch.Index + keyMatch.Length).Trim();
+        var value = afterColon.TrimEnd(',').Trim();
+        return (key, value);
     }
 
     private string? ExtractKeyFromResxLine(string line)
