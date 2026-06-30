@@ -47,8 +47,13 @@ public partial class BranchComparisonViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _canConfirm;
+    
+    [ObservableProperty]
+    private bool _showNextButton;
 
     public string ConfirmButtonText => TotalRepositories == 1 ? "Done" : "Confirm All";
+    
+    public string ValidateButtonText => _currentRepositoryIndex == _repositoryPaths.Count - 1 ? "Validate & Finish" : "Validate Branches";
     
     public bool ShowNavigationButtons => TotalRepositories > 1;
 
@@ -160,6 +165,7 @@ public partial class BranchComparisonViewModel : ViewModelBase
             if (ValidateCurrentBranches())
             {
                 SaveCurrentConfiguration();
+                UpdateConfirmState();
                 LoadRepository(_currentRepositoryIndex - 1);
             }
         }
@@ -174,6 +180,7 @@ public partial class BranchComparisonViewModel : ViewModelBase
             if (ValidateCurrentBranches())
             {
                 SaveCurrentConfiguration();
+                UpdateConfirmState();
                 LoadRepository(_currentRepositoryIndex + 1);
             }
         }
@@ -232,7 +239,9 @@ public partial class BranchComparisonViewModel : ViewModelBase
     {
         CanNavigatePrevious = _currentRepositoryIndex > 0;
         CanNavigateNext = _currentRepositoryIndex < _repositoryPaths.Count - 1;
+        ShowNextButton = _currentRepositoryIndex < _repositoryPaths.Count - 1;
         UpdateConfirmState();
+        OnPropertyChanged(nameof(ValidateButtonText));
     }
 
     private void UpdateConfirmState()

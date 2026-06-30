@@ -5,9 +5,10 @@
         x:DataType="vm:BranchComparisonViewModel"
         Title="Configure Git Branch Comparison"
         Width="600"
-        Height="400"
+        Height="560"
+        MinHeight="560"
         WindowStartupLocation="CenterOwner"
-        CanResize="False">
+        CanResize="True">
 
     <Grid Margin="20">
         <Grid.RowDefinitions>
@@ -118,6 +119,7 @@
             <Button Content="Next Repository →"
                     Command="{Binding NavigateNextCommand}"
                     IsEnabled="{Binding CanNavigateNext}"
+                    IsVisible="{Binding ShowNextButton}"
                     Width="160"/>
         </StackPanel>
 
@@ -126,12 +128,11 @@
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Spacing="10">
-            <Button Content="Validate Branches"
+            <Button Content="{Binding ValidateButtonText}"
                     Command="{Binding ValidateBranchesCommand}"
-                    Width="140"/>
+                    Width="160"/>
             <Button Content="{Binding ConfirmButtonText}"
                     Click="Confirm_Click"
-                    IsEnabled="{Binding CanConfirm}"
                     Width="120"
                     Classes="accent"/>
             <Button Content="Cancel"
