@@ -3334,6 +3334,16 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task RunGitChangeDetection()
     {
         var logFile = Path.Combine(Path.GetTempPath(), "isometrix-lingo-git-diff.log");
+        
+        void Log(string message)
+        {
+            try
+            {
+                File.AppendAllText(logFile, $"[{DateTime.Now:HH:mm:ss.fff}] [MainVM] {message}\n");
+            }
+            catch { /* Ignore */ }
+        }
+        
         StatusMessage = $"Git diff log: {logFile}";
         await Task.Delay(2000);
         
@@ -3389,17 +3399,20 @@ public partial class MainWindowViewModel : ViewModelBase
                                 Path.GetFullPath(k.Source.DirectoryPath).StartsWith(Path.GetFullPath(repoPath)))
                     .ToList();
 
+                Log($"Found {keysInRepo.Count} keys in repo '{repoName}'");
                 StatusMessage = $"Found {keysInRepo.Count} keys in repo '{repoName}'";
                 await Task.Delay(1000);
 
                 // Group keys by source file
                 var fileGroups = keysInRepo.GroupBy(k => k.Source).ToList();
 
+                Log($"Grouped into {fileGroups.Count} file groups");
                 StatusMessage = $"Grouped into {fileGroups.Count} file group{(fileGroups.Count == 1 ? "" : "s")}";
                 await Task.Delay(1000);
 
                 // Get list of ALL changed files in this repo
                 var changedFilePaths = _gitDiffService.GetChangedFiles(repoPath, branches.deployedBranch, branches.releaseBranch);
+                Log($"Git found {changedFilePaths.Count} changed files: {string.Join(", ", changedFilePaths)}");
                 StatusMessage = $"Git found {changedFilePaths.Count} changed file{(changedFilePaths.Count == 1 ? "" : "s")} in repo";
                 await Task.Delay(1000);
 
@@ -3407,7 +3420,14 @@ public partial class MainWindowViewModel : ViewModelBase
                 {
                     var source = fileGroup.Key;
                     if (source == null || source.DirectoryPath == null)
+                    {
+                        Log($"Skipping source with null name or directory");
                         continue;
+                    }
+
+                    Log($"Checking source: Name='{source.Name}', DirectoryPath='{source.DirectoryPath}', Type={source.Type}");
+                    StatusMessage = $"Checking source: {source.Name}, dir: {source.DirectoryPath}";
+                    await Task.Delay(500);
 
                     // Find all changed files matching this source (any language variant)
                     var sourceBasePath = Path.Combine(source.DirectoryPath, source.Name);
@@ -3419,13 +3439,21 @@ public partial class MainWindowViewModel : ViewModelBase
                         .Where(path => 
                         {
                             var fileName = Path.GetFileName(path);
+                            var fileDir = Path.GetDirectoryName(path) ?? "";
                             var baseName = source.Type == FileType.Json
                                 ? fileName.Split('.')[0]  // For JSON: Forms.es.json → Forms
                                 : fileName.Split('_')[0].Replace(".resx", ""); // For RESX: Forms_es.resx → Forms
-                            return baseName.Equals(source.Name, StringComparison.OrdinalIgnoreCase) &&
-                                   Path.GetDirectoryName(path)?.Equals(source.DirectoryPath, StringComparison.OrdinalIgnoreCase) == true;
+                            
+                            var nameMatch = baseName.Equals(source.Name, StringComparison.OrdinalIgnoreCase);
+                            var dirMatch = fileDir.Equals(source.DirectoryPath, StringComparison.OrdinalIgnoreCase);
+                            
+                            Log($"  Comparing file '{path}': fileName='{fileName}', baseName='{baseName}', fileDir='{fileDir}', nameMatch={nameMatch}, dirMatch={dirMatch}");
+                            
+                            return nameMatch && dirMatch;
                         })
                         .ToList();
+
+                    Log($"Found {matchingChangedFiles.Count} matching changed files for source '{source.Name}'");
 
                     if (matchingChangedFiles.Count == 0)
                     {
