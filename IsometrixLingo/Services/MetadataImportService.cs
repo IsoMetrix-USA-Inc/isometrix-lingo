@@ -95,6 +95,12 @@ public class MetadataImportService
                     {
                         key.ChangeType = ChangeType.Added;
                     }
+
+                    // Restore review/approval state
+                    if (file.ApprovedKeys.Contains(key.Key))
+                    {
+                        key.IsApproved = true;
+                    }
                 }
             }
         }

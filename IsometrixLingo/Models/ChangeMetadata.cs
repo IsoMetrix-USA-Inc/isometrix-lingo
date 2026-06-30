@@ -34,4 +34,10 @@ public class FileChangeInfo
     public string Path { get; set; } = string.Empty;
     public List<string> ModifiedKeys { get; set; } = new();
     public List<string> AddedKeys { get; set; } = new();
+
+    /// <summary>
+    /// Keys that have been reviewed and approved/signed off by the user.
+    /// Subset of ModifiedKeys and AddedKeys.
+    /// </summary>
+    public List<string> ApprovedKeys { get; set; } = new();
 }

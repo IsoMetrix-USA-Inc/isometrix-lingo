@@ -2838,6 +2838,8 @@ public partial class MainWindowViewModel : ViewModelBase
             if (_changeMetadata != null && _changeMetadata.Repositories.Count > 0)
             {
                 var metadataService = new MetadataExportService();
+                // Capture the latest review/approval state into the metadata before writing
+                metadataService.SyncApprovedKeys(_changeMetadata, _translationStore.GetAllKeys());
                 metadataService.WriteMetadataFile(tempFolderPath, _changeMetadata);
                 StatusMessage = $"Exported change metadata for {_changeMetadata.Repositories.Count} repositor{(_changeMetadata.Repositories.Count == 1 ? "y" : "ies")}.";
                 await Task.Delay(500); // Brief pause to show metadata message
