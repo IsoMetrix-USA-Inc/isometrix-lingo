@@ -52,6 +52,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private string _username = "User";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowDetectChangesCheckbox))]
     private bool _isDeveloper = false;
 
     [ObservableProperty]
@@ -77,6 +78,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanImport))]
+    [NotifyPropertyChangedFor(nameof(ShowDetectChangesCheckbox))]
     private bool _hasKeys;
 
     [ObservableProperty]
@@ -211,9 +213,20 @@ public partial class MainWindowViewModel : ViewModelBase
     private ChangeMetadata? _changeMetadata = null;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowDetectChangesCheckbox))]
     private bool _metadataLoadedFromImport = false; // Track if metadata came from import
 
-    public bool ShowDetectChangesCheckbox => IsDeveloper && !MetadataLoadedFromImport;
+    public bool ShowDetectChangesCheckbox => IsDeveloper && HasKeys && !MetadataLoadedFromImport;
+
+    partial void OnMetadataLoadedFromImportChanged(bool value)
+    {
+        // When change metadata is loaded from an import, git change detection is redundant:
+        // hide the checkbox and ensure detection is turned off.
+        if (value)
+        {
+            DetectChanges = false;
+        }
+    }
 
     public bool HasSuggestedDeploymentRoot => !string.IsNullOrWhiteSpace(SuggestedDeploymentRoot);
     public bool HasDeploymentPreview => DeploymentPreviewItems.Count > 0;
