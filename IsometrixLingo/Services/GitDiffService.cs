@@ -11,7 +11,7 @@ namespace IsometrixLingo.Services;
 public class GitDiffService
 {
     private static readonly string LogFile = Path.Combine(Path.GetTempPath(), "isometrix-lingo-git-diff.log");
-    
+
     public GitDiffService()
     {
         // Clear log file on startup
@@ -22,7 +22,7 @@ public class GitDiffService
         }
         catch { /* Ignore */ }
     }
-    
+
     private void Log(string message)
     {
         try
@@ -97,13 +97,13 @@ public class GitDiffService
         {
             using var repo = new Repository(repoPath);
             var branch = repo.Branches[branchName];
-            
+
             if (branch == null)
             {
                 Log($"GetCommitHash: Branch '{branchName}' NOT FOUND");
                 return null;
             }
-            
+
             var sha = branch?.Tip?.Sha;
             Log($"GetCommitHash: Branch '{branchName}' → {(sha != null ? sha[..7] : "NULL")}");
             return sha;
@@ -126,20 +126,20 @@ public class GitDiffService
     {
         Log($"GetChangedFiles: repo='{repoPath}', deployed='{deployedBranch}', release='{releaseBranch}'");
         var changedFiles = new List<string>();
-        
+
         try
         {
             using var repo = new Repository(repoPath);
-            
+
             var deployedCommit = repo.Branches[deployedBranch]?.Tip;
             var releaseCommit = repo.Branches[releaseBranch]?.Tip;
-            
+
             if (deployedCommit == null)
             {
                 Log($"GetChangedFiles: Deployed branch '{deployedBranch}' NOT FOUND");
                 return changedFiles;
             }
-            
+
             if (releaseCommit == null)
             {
                 Log($"GetChangedFiles: Release branch '{releaseBranch}' NOT FOUND");
@@ -148,13 +148,13 @@ public class GitDiffService
 
             Log($"GetChangedFiles: Comparing trees...");
             var changes = repo.Diff.Compare<TreeChanges>(deployedCommit.Tree, releaseCommit.Tree);
-            
+
             foreach (var change in changes)
             {
                 changedFiles.Add(change.Path);
                 Log($"GetChangedFiles: Found changed file: {change.Path}");
             }
-            
+
             Log($"GetChangedFiles: Returning {changedFiles.Count} changed file{(changedFiles.Count == 1 ? "" : "s")}");
             return changedFiles;
         }
@@ -187,7 +187,7 @@ public class GitDiffService
                 Log($"[GitDiff] Deployed branch '{deployedBranch}' not found!");
                 return null;
             }
-            
+
             if (releaseCommit == null)
             {
                 Log($"[GitDiff] Release branch '{releaseBranch}' not found!");
@@ -404,14 +404,14 @@ public class GitDiffService
         // In RESX diffs, the <data name="..."> line defines the key
         // But often the VALUE is what changes, not the data line itself
         // So we look for: <data name="key" ...> OR <value>...</value>
-        
+
         // Try to match <data name="key">
         var dataMatch = System.Text.RegularExpressions.Regex.Match(line, @"<data\s+name=""([^""]+)""");
         if (dataMatch.Success)
         {
             return dataMatch.Groups[1].Value;
         }
-        
+
         // If it's a <value> line, we can't extract the key directly
         // The parser needs to track context
         return null;

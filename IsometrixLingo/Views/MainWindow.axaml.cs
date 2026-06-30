@@ -141,8 +141,8 @@ public partial class MainWindow : Window
             return;
 
         var editViewModel = new EditTranslationViewModel(
-            translationKey, 
-            mainViewModel.TranslationStore, 
+            translationKey,
+            mainViewModel.TranslationStore,
             mainViewModel.CurrentMode,
             mainViewModel.Username);
         var dialog = new EditTranslationDialog
@@ -156,7 +156,7 @@ public partial class MainWindow : Window
         {
             // Mark as having unsaved changes (for both Edit and Suggest modes)
             mainViewModel.HasUnsavedChanges = true;
-            
+
             // Update status message to show modified count
             var modifiedCount = mainViewModel.TranslationStore.GetModifiedKeys().Count;
 
@@ -206,7 +206,7 @@ public partial class MainWindow : Window
                         var dirPath = key.Source.DirectoryPath;
                         if (dirPath.Length > 30)
                             dirPath = "..." + dirPath.Substring(dirPath.Length - 27);
-                        
+
                         var dirBlock = new TextBlock
                         {
                             Text = dirPath,
@@ -517,7 +517,7 @@ public partial class MainWindow : Window
                     Command = viewModel.EditTranslationCommand,
                     CommandParameter = data
                 };
-                
+
                 // Bind tooltip to CurrentMode for context-aware text
                 var editTooltipBinding = new Binding("CurrentMode")
                 {
@@ -636,16 +636,16 @@ public partial class MainWindow : Window
                     if (items != null)
                     {
                         var itemList = items.ToList();
-                        
+
                         // Filter to only directories (IStorageFolder)
                         var directories = itemList.OfType<IStorageFolder>().ToList();
-                        
+
                         if (directories.Count == 0)
                         {
                             viewModel.StatusMessage = "Please drop a directory, not individual files.";
                             return;
                         }
-                        
+
                         if (directories.Count > 1)
                         {
                             viewModel.StatusMessage = "Please drop only one directory at a time.";

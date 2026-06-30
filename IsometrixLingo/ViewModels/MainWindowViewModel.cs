@@ -209,10 +209,10 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly GitDiffService _gitDiffService = new();
     private List<DirectoryScanResult> _selectedRepositories = new();
     private ChangeMetadata? _changeMetadata = null;
-    
+
     [ObservableProperty]
     private bool _metadataLoadedFromImport = false; // Track if metadata came from import
-    
+
     public bool ShowDetectChangesCheckbox => IsDeveloper && !MetadataLoadedFromImport;
 
     public bool HasSuggestedDeploymentRoot => !string.IsNullOrWhiteSpace(SuggestedDeploymentRoot);
@@ -2470,7 +2470,7 @@ public partial class MainWindowViewModel : ViewModelBase
         HasKeys = false;
         HasUnsavedChanges = false;
         _rootDirectoryPath = null; // Reset root directory
-        
+
         // Reset git change detection state
         _changeMetadata = null;
         _branchConfigurations.Clear();
@@ -3334,7 +3334,7 @@ public partial class MainWindowViewModel : ViewModelBase
             // If change detection is enabled and we have branch configurations, run git diff
             StatusMessage = $"DetectChanges={DetectChanges}, BranchConfigs={_branchConfigurations.Count}";
             await Task.Delay(1500);
-            
+
             if (DetectChanges && _branchConfigurations.Count > 0)
             {
                 await RunGitChangeDetection();
@@ -3363,7 +3363,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task RunGitChangeDetection()
     {
         var logFile = Path.Combine(Path.GetTempPath(), "isometrix-lingo-git-diff.log");
-        
+
         void Log(string message)
         {
             try
@@ -3372,13 +3372,13 @@ public partial class MainWindowViewModel : ViewModelBase
             }
             catch { /* Ignore */ }
         }
-        
+
         StatusMessage = $"Git diff log: {logFile}";
         await Task.Delay(2000);
-        
+
         StatusMessage = $"Starting git change detection for {_branchConfigurations.Count} repositor{(_branchConfigurations.Count == 1 ? "y" : "ies")}";
         await Task.Delay(1500);
-        
+
         try
         {
             var totalChanges = 0;
@@ -3425,17 +3425,17 @@ public partial class MainWindowViewModel : ViewModelBase
                 // Get all translation keys from this repository
                 var allKeys = _translationStore.GetAllKeys();
                 Log($"Total keys in store: {allKeys.Count}");
-                
+
                 // Log first few key paths for debugging
                 foreach (var key in allKeys.Take(3))
                 {
                     Log($"  Key '{key.Key}' has DirectoryPath: '{key.Source?.DirectoryPath ?? "NULL"}'");
                 }
-                
+
                 var repoFullPath = Path.GetFullPath(repoPath);
                 Log($"Looking for keys with DirectoryPath starting with: '{repoFullPath}'");
                 Log($"_rootDirectoryPath = '{_rootDirectoryPath ?? "NULL"}'");
-                
+
                 // DirectoryPath is stored as relative path from _rootDirectoryPath
                 // We need to resolve it to absolute path before comparing with repoPath
                 var keysInRepo = allKeys
@@ -3443,16 +3443,16 @@ public partial class MainWindowViewModel : ViewModelBase
                     {
                         if (k.Source?.DirectoryPath == null || _rootDirectoryPath == null)
                             return false;
-                        
+
                         // Resolve relative DirectoryPath to absolute
                         var absoluteDirectoryPath = Path.GetFullPath(Path.Combine(_rootDirectoryPath, k.Source.DirectoryPath));
                         var match = absoluteDirectoryPath.StartsWith(repoFullPath, StringComparison.OrdinalIgnoreCase);
-                        
+
                         if (match)
                         {
                             Log($"  MATCH: '{k.Source.DirectoryPath}' → '{absoluteDirectoryPath}' starts with '{repoFullPath}'");
                         }
-                        
+
                         return match;
                     })
                     .ToList();
@@ -3495,25 +3495,25 @@ public partial class MainWindowViewModel : ViewModelBase
                     {
                         sourceDirectoryWithoutRepo = source.DirectoryPath.Substring(firstSlash + 1);
                     }
-                    
+
                     Log($"  Source directory (stripped): '{sourceDirectoryWithoutRepo}'");
-                    
+
                     // Match changed files that start with our base path
                     // e.g., "Forms" matches "Forms.en.json", "Forms.es.json", "Forms.resx", "Forms_es.resx", etc.
                     var matchingChangedFiles = changedFilePaths
-                        .Where(path => 
+                        .Where(path =>
                         {
                             var fileName = Path.GetFileName(path);
                             var fileDir = Path.GetDirectoryName(path) ?? "";
                             var baseName = source.Type == FileType.Json
                                 ? fileName.Split('.')[0]  // For JSON: Forms.es.json → Forms
                                 : fileName.Split('_')[0].Replace(".resx", ""); // For RESX: Forms_es.resx → Forms
-                            
+
                             var nameMatch = baseName.Equals(source.Name, StringComparison.OrdinalIgnoreCase);
                             var dirMatch = fileDir.Equals(sourceDirectoryWithoutRepo, StringComparison.OrdinalIgnoreCase);
-                            
+
                             Log($"  Comparing file '{path}': fileName='{fileName}', baseName='{baseName}', fileDir='{fileDir}', nameMatch={nameMatch}, dirMatch={dirMatch}");
-                            
+
                             return nameMatch && dirMatch;
                         })
                         .ToList();

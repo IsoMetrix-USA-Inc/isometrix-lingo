@@ -47,14 +47,14 @@ public partial class BranchComparisonViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _canConfirm;
-    
+
     [ObservableProperty]
     private bool _showNextButton;
 
     public string ConfirmButtonText => TotalRepositories == 1 ? "Done" : "Confirm All";
-    
+
     public string ValidateButtonText => _currentRepositoryIndex == _repositoryPaths.Count - 1 ? "Validate & Finish" : "Validate Branches";
-    
+
     public bool ShowNavigationButtons => TotalRepositories > 1;
 
     // Store validated branch configurations
@@ -145,13 +145,13 @@ public partial class BranchComparisonViewModel : ViewModelBase
         {
             return "main";
         }
-        
+
         // Check for local "master" branch
         if (_gitDiffService.ValidateBranchExists(repoPath, "master"))
         {
             return "master";
         }
-        
+
         // If nothing found, default to "origin/main" (user will get validation error if wrong)
         return "origin/main";
     }

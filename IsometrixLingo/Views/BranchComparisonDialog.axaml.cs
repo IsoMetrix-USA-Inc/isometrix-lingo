@@ -17,7 +17,7 @@ public partial class BranchComparisonDialog : Window
         {
             // Validate and save the current repository configuration before confirming
             viewModel.ValidateBranchesCommand.Execute(null);
-            
+
             // Now check if we can confirm (all repos configured)
             if (viewModel.CanConfirm)
             {
