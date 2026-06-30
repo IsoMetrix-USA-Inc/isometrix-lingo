@@ -109,7 +109,8 @@
                     Orientation="Horizontal"
                     HorizontalAlignment="Center"
                     Spacing="10"
-                    Margin="0,0,0,15">
+                    Margin="0,0,0,15"
+                    IsVisible="{Binding ShowNavigationButtons}">
             <Button Content="← Previous Repository"
                     Command="{Binding NavigatePreviousCommand}"
                     IsEnabled="{Binding CanNavigatePrevious}"
@@ -128,10 +129,10 @@
             <Button Content="Validate Branches"
                     Command="{Binding ValidateBranchesCommand}"
                     Width="140"/>
-            <Button Content="Confirm"
+            <Button Content="{Binding ConfirmButtonText}"
                     Click="Confirm_Click"
                     IsEnabled="{Binding CanConfirm}"
-                    Width="100"
+                    Width="120"
                     Classes="accent"/>
             <Button Content="Cancel"
                     Click="Cancel_Click"

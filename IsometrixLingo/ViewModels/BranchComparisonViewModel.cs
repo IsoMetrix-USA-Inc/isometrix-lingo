@@ -48,6 +48,10 @@ public partial class BranchComparisonViewModel : ViewModelBase
     [ObservableProperty]
     private bool _canConfirm;
 
+    public string ConfirmButtonText => TotalRepositories == 1 ? "Done" : "Confirm All";
+    
+    public bool ShowNavigationButtons => TotalRepositories > 1;
+
     // Store validated branch configurations
     private readonly Dictionary<string, (string deployedBranch, string releaseBranch)> _branchConfigurations = new();
 
@@ -166,8 +170,12 @@ public partial class BranchComparisonViewModel : ViewModelBase
     [RelayCommand]
     private void ValidateBranches()
     {
-        ValidateCurrentBranches();
-        UpdateConfirmState();
+        if (ValidateCurrentBranches())
+        {
+            // Save configuration if validation succeeds
+            SaveCurrentConfiguration();
+            UpdateConfirmState();
+        }
     }
 
     private bool ValidateCurrentBranches()
