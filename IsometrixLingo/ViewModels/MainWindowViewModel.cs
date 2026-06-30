@@ -3303,9 +3303,17 @@ public partial class MainWindowViewModel : ViewModelBase
             }
 
             // If change detection is enabled and we have branch configurations, run git diff
+            StatusMessage = $"DetectChanges={DetectChanges}, BranchConfigs={_branchConfigurations.Count}";
+            await Task.Delay(1500);
+            
             if (DetectChanges && _branchConfigurations.Count > 0)
             {
                 await RunGitChangeDetection();
+            }
+            else
+            {
+                StatusMessage = $"Skipping git change detection (DetectChanges={DetectChanges}, Configs={_branchConfigurations.Count})";
+                await Task.Delay(1500);
             }
 
             FileMappingStepStatus = StepStatus.Completed;
@@ -3325,6 +3333,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private async Task RunGitChangeDetection()
     {
+        StatusMessage = $"Starting git change detection for {_branchConfigurations.Count} repositor{(_branchConfigurations.Count == 1 ? "y" : "ies")}";
+        await Task.Delay(1500);
+        
         try
         {
             var totalChanges = 0;
@@ -3374,8 +3385,14 @@ public partial class MainWindowViewModel : ViewModelBase
                                 Path.GetFullPath(k.Source.DirectoryPath).StartsWith(Path.GetFullPath(repoPath)))
                     .ToList();
 
+                StatusMessage = $"Found {keysInRepo.Count} keys in repo '{repoName}'";
+                await Task.Delay(1000);
+
                 // Group keys by source file
                 var fileGroups = keysInRepo.GroupBy(k => k.Source).ToList();
+
+                StatusMessage = $"Grouped into {fileGroups.Count} file group{(fileGroups.Count == 1 ? "" : "s")}";
+                await Task.Delay(1000);
 
                 foreach (var fileGroup in fileGroups)
                 {
@@ -3390,6 +3407,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
                     var fullFilePath = Path.Combine(source.DirectoryPath, fileName);
                     var relativeFilePath = Path.GetRelativePath(repoPath, fullFilePath);
+
+                    StatusMessage = $"Git diff: repo='{repoPath}', deployed='{branches.deployedBranch}', release='{branches.releaseBranch}', file='{relativeFilePath}'";
+                    await Task.Delay(2000); // Give time to read
 
                     // Run git diff on this file
                     var diffContent = _gitDiffService.GetFileDiff(repoPath, branches.deployedBranch, branches.releaseBranch, relativeFilePath);
